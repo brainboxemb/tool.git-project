@@ -1,0 +1,81 @@
+name: Self-test Git project tooling
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Create fixture repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$RUNNER_TEMP/git-project-fixture"
+          mkdir -p "$repo"
+          cp fixture/project.yml fixture/project.example.yml "$repo/"
+          git -C "$repo" init
+          git -C "$repo" config user.name tool-git-project-test
+          git -C "$repo" config user.email tool-git-project-test@example.invalid
+          git -C "$repo" add project.yml project.example.yml
+          git -C "$repo" commit -m fixture
+          echo "FIXTURE_REPO=$repo" >> "$GITHUB_ENV"
+      - name: Validate and bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./git-project.sh validate --repo "$FIXTURE_REPO"
+          ./git-project.sh bootstrap --repo "$FIXTURE_REPO"
+          ./git-project.sh status --repo "$FIXTURE_REPO"
+          test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "5a7135194b94644129d05a5f4a8ceffc5de499bf"
+          git -C "$FIXTURE_REPO" ls-files --stage -- tools/tool.java-project | grep '^160000 '
+      - name: Controlled update is idempotent
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./git-project.sh update --repo "$FIXTURE_REPO"
+          test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "5a7135194b94644129d05a5f4a8ceffc5de499bf"
+
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Create fixture repository
+        shell: pwsh
+        run: |
+          $repo = Join-Path $env:RUNNER_TEMP "git-project-fixture"
+          New-Item -ItemType Directory -Force -Path $repo | Out-Null
+          Copy-Item fixture/project.yml, fixture/project.example.yml -Destination $repo
+          git -C $repo init
+          git -C $repo config user.name tool-git-project-test
+          git -C $repo config user.email tool-git-project-test@example.invalid
+          git -C $repo add project.yml project.example.yml
+          git -C $repo commit -m fixture
+          "FIXTURE_REPO=$repo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Validate and bootstrap
+        shell: pwsh
+        run: |
+          .\git-project.ps1 validate -RepoRoot $env:FIXTURE_REPO
+          .\git-project.ps1 bootstrap -RepoRoot $env:FIXTURE_REPO
+          .\git-project.ps1 status -RepoRoot $env:FIXTURE_REPO
+          $actual = (git -C "$env:FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD).Trim()
+          if ($actual -ne "5a7135194b94644129d05a5f4a8ceffc5de499bf") { throw "Unexpected dependency SHA: $actual" }
+          $entry = git -C $env:FIXTURE_REPO ls-files --stage -- tools/tool.java-project
+          if ($entry -notmatch '^160000\s') { throw "Dependency is not a gitlink." }
+      - name: Controlled update is idempotent
+        shell: pwsh
+        run: |
+          .\git-project.ps1 update -RepoRoot $env:FIXTURE_REPO
+          $actual = (git -C "$env:FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD).Trim()
+          if ($actual -ne "5a7135194b94644129d05a5f4a8ceffc5de499bf") { throw "Unexpected dependency SHA after update: $actual" }

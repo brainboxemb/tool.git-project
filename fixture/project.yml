@@ -1,0 +1,16 @@
+schema_version: 1
+
+project:
+  name: fixture.git-project
+
+profiles:
+  - type: example
+    config: project.example.yml
+
+dependencies:
+  - name: tool.java-project
+    role: tooling
+    type: git-submodule
+    url: https://github.com/brainboxemb/tool.java-project.git
+    path: tools/tool.java-project
+    ref: 5a7135194b94644129d05a5f4a8ceffc5de499bf
