@@ -69,6 +69,20 @@ jobs:
           ./update-repo.sh
           test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
           test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
+      - name: Dirty dependency is protected
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$FIXTURE_REPO"
+          printf '\nlocal test change\n' >> tools/tool.java-project/README.md
+          if ./update-repo.sh > dirty-update.log 2>&1; then
+            cat dirty-update.log
+            echo "update unexpectedly succeeded for a dirty dependency" >&2
+            exit 1
+          fi
+          cat dirty-update.log
+          grep -q "has local changes" dirty-update.log
+          git -C tools/tool.java-project reset --hard HEAD
 
   windows:
     runs-on: windows-2025
@@ -131,6 +145,25 @@ jobs:
             if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA after update: $toolActual" }
             $javaActual = (git -C tools/tool.java-project rev-parse HEAD).Trim()
             if ($javaActual -ne $env:JAVA_TOOL_REF) { throw "Unexpected Java tool SHA after update: $javaActual" }
+          } finally {
+            Pop-Location
+          }
+      - name: Dirty dependency is protected
+        shell: pwsh
+        run: |
+          Push-Location $env:FIXTURE_REPO
+          try {
+            Add-Content -Path tools/tool.java-project/README.md -Value "local test change"
+            $failedAsExpected = $false
+            try {
+              .\update-repo.ps1
+            } catch {
+              $failedAsExpected = $true
+              if ($_.Exception.Message -notmatch 'local changes') { throw }
+              Write-Host $_.Exception.Message
+            }
+            if (-not $failedAsExpected) { throw "update unexpectedly succeeded for a dirty dependency" }
+            git -C tools/tool.java-project reset --hard HEAD
           } finally {
             Pop-Location
           }
