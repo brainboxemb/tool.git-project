@@ -1,7 +1,6 @@
 $ErrorActionPreference = "Stop"
 
 $ToolPath = "tools/tool.git-project"
-$ToolUrl = "https://github.com/brainboxemb/tool.git-project.git"
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git was not found in PATH." }
 $Root = (& git rev-parse --show-toplevel 2>$null)
@@ -10,9 +9,7 @@ $Root = $Root.Trim()
 
 $Entry = & git -C $Root ls-files --stage -- $ToolPath 2>$null
 if ($LASTEXITCODE -ne 0 -or $Entry -notmatch '^160000\s') {
-    Write-Host "Registering bootstrap dependency: $ToolPath"
-    & git -C $Root submodule add --force $ToolUrl $ToolPath
-    if ($LASTEXITCODE -ne 0) { throw "Unable to register $ToolPath." }
+    throw "Bootstrap dependency '$ToolPath' is not a committed gitlink. Register tool.git-project once with 'git submodule add https://github.com/brainboxemb/tool.git-project.git $ToolPath', pin the desired commit, and commit .gitmodules + the gitlink."
 }
 
 & git -C $Root submodule sync -- $ToolPath
