@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  JAVA_TOOL_REF: dc94cf120ea4a196c9fc3daff4d22984ea4481c1
+
 jobs:
   linux:
     runs-on: ubuntu-24.04
@@ -16,34 +19,56 @@ jobs:
     steps:
       - name: Checkout tool
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Create fixture repository
+      - name: Create clean consumer fixture
         shell: bash
+        env:
+          TOOL_BRANCH: ${{ github.head_ref || 'main' }}
         run: |
           set -euo pipefail
           repo="$RUNNER_TEMP/git-project-fixture"
           mkdir -p "$repo"
           cp fixture/project.yml fixture/project.example.yml "$repo/"
+          cp bootstrap/consumer-bootstrap.sh "$repo/bootstrap.sh"
+          cp bootstrap/consumer-update.sh "$repo/update-repo.sh"
+          chmod +x "$repo/bootstrap.sh" "$repo/update-repo.sh"
+
           git -C "$repo" init
           git -C "$repo" config user.name tool-git-project-test
           git -C "$repo" config user.email tool-git-project-test@example.invalid
-          git -C "$repo" add project.yml project.example.yml
+          git -C "$repo" submodule add https://github.com/brainboxemb/tool.git-project.git tools/tool.git-project
+          git -C "$repo/tools/tool.git-project" fetch origin "$TOOL_BRANCH"
+          git -C "$repo/tools/tool.git-project" checkout --detach "origin/$TOOL_BRANCH"
+          tool_sha="$(git -C "$repo/tools/tool.git-project" rev-parse HEAD)"
+
+          git -C "$repo" add project.yml project.example.yml bootstrap.sh update-repo.sh .gitmodules tools/tool.git-project
           git -C "$repo" commit -m fixture
+
+          # Emulate a normal clone without --recurse-submodules: the gitlink is
+          # committed, but the bootstrap tool worktree is not initialized.
+          git -C "$repo" submodule deinit -f -- tools/tool.git-project
+          rm -rf "$repo/tools/tool.git-project"
+
           echo "FIXTURE_REPO=$repo" >> "$GITHUB_ENV"
-      - name: Validate and bootstrap
+          echo "EXPECTED_TOOL_SHA=$tool_sha" >> "$GITHUB_ENV"
+      - name: Bootstrap from project root
         shell: bash
         run: |
           set -euo pipefail
-          ./git-project.sh validate --repo "$FIXTURE_REPO"
-          ./git-project.sh bootstrap --repo "$FIXTURE_REPO"
-          ./git-project.sh status --repo "$FIXTURE_REPO"
-          test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "dc94cf120ea4a196c9fc3daff4d22984ea4481c1"
-          git -C "$FIXTURE_REPO" ls-files --stage -- tools/tool.java-project | grep '^160000 '
-      - name: Controlled update is idempotent
+          cd "$FIXTURE_REPO"
+          ./bootstrap.sh
+          test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
+          test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
+          git ls-files --stage -- tools/tool.git-project | grep '^160000 '
+          git ls-files --stage -- tools/tool.java-project | grep '^160000 '
+          tools/tool.git-project/git-project.sh status --repo .
+      - name: Root update launcher is idempotent
         shell: bash
         run: |
           set -euo pipefail
-          ./git-project.sh update --repo "$FIXTURE_REPO"
-          test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "dc94cf120ea4a196c9fc3daff4d22984ea4481c1"
+          cd "$FIXTURE_REPO"
+          ./update-repo.sh
+          test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
+          test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
 
   windows:
     runs-on: windows-2025
@@ -51,31 +76,61 @@ jobs:
     steps:
       - name: Checkout tool
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Create fixture repository
+      - name: Create clean consumer fixture
         shell: pwsh
+        env:
+          TOOL_BRANCH: ${{ github.head_ref || 'main' }}
         run: |
           $repo = Join-Path $env:RUNNER_TEMP "git-project-fixture"
           New-Item -ItemType Directory -Force -Path $repo | Out-Null
           Copy-Item fixture/project.yml, fixture/project.example.yml -Destination $repo
+          Copy-Item bootstrap/consumer-bootstrap.ps1 -Destination (Join-Path $repo "bootstrap.ps1")
+          Copy-Item bootstrap/consumer-update.ps1 -Destination (Join-Path $repo "update-repo.ps1")
+
           git -C $repo init
           git -C $repo config user.name tool-git-project-test
           git -C $repo config user.email tool-git-project-test@example.invalid
-          git -C $repo add project.yml project.example.yml
+          git -C $repo submodule add https://github.com/brainboxemb/tool.git-project.git tools/tool.git-project
+          git -C "$repo/tools/tool.git-project" fetch origin $env:TOOL_BRANCH
+          git -C "$repo/tools/tool.git-project" checkout --detach "origin/$env:TOOL_BRANCH"
+          $toolSha = (git -C "$repo/tools/tool.git-project" rev-parse HEAD).Trim()
+
+          git -C $repo add project.yml project.example.yml bootstrap.ps1 update-repo.ps1 .gitmodules tools/tool.git-project
           git -C $repo commit -m fixture
+
+          git -C $repo submodule deinit -f -- tools/tool.git-project
+          Remove-Item -Recurse -Force (Join-Path $repo "tools/tool.git-project") -ErrorAction SilentlyContinue
+
           "FIXTURE_REPO=$repo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Validate and bootstrap
+          "EXPECTED_TOOL_SHA=$toolSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Bootstrap from project root
         shell: pwsh
         run: |
-          .\git-project.ps1 validate -RepoRoot $env:FIXTURE_REPO
-          .\git-project.ps1 bootstrap -RepoRoot $env:FIXTURE_REPO
-          .\git-project.ps1 status -RepoRoot $env:FIXTURE_REPO
-          $actual = (git -C "$env:FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD).Trim()
-          if ($actual -ne "dc94cf120ea4a196c9fc3daff4d22984ea4481c1") { throw "Unexpected dependency SHA: $actual" }
-          $entry = git -C $env:FIXTURE_REPO ls-files --stage -- tools/tool.java-project
-          if ($entry -notmatch '^160000\s') { throw "Dependency is not a gitlink." }
-      - name: Controlled update is idempotent
+          Push-Location $env:FIXTURE_REPO
+          try {
+            .\bootstrap.ps1
+            $toolActual = (git -C tools/tool.git-project rev-parse HEAD).Trim()
+            if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA: $toolActual" }
+            $javaActual = (git -C tools/tool.java-project rev-parse HEAD).Trim()
+            if ($javaActual -ne $env:JAVA_TOOL_REF) { throw "Unexpected Java tool SHA: $javaActual" }
+            $toolEntry = git ls-files --stage -- tools/tool.git-project
+            $javaEntry = git ls-files --stage -- tools/tool.java-project
+            if ($toolEntry -notmatch '^160000\s') { throw "Bootstrap tool is not a gitlink." }
+            if ($javaEntry -notmatch '^160000\s') { throw "Java tool is not a gitlink." }
+            .\tools\tool.git-project\git-project.ps1 status -RepoRoot .
+          } finally {
+            Pop-Location
+          }
+      - name: Root update launcher is idempotent
         shell: pwsh
         run: |
-          .\git-project.ps1 update -RepoRoot $env:FIXTURE_REPO
-          $actual = (git -C "$env:FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD).Trim()
-          if ($actual -ne "dc94cf120ea4a196c9fc3daff4d22984ea4481c1") { throw "Unexpected dependency SHA after update: $actual" }
+          Push-Location $env:FIXTURE_REPO
+          try {
+            .\update-repo.ps1
+            $toolActual = (git -C tools/tool.git-project rev-parse HEAD).Trim()
+            if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA after update: $toolActual" }
+            $javaActual = (git -C tools/tool.java-project rev-parse HEAD).Trim()
+            if ($javaActual -ne $env:JAVA_TOOL_REF) { throw "Unexpected Java tool SHA after update: $javaActual" }
+          } finally {
+            Pop-Location
+          }
