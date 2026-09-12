@@ -1,0 +1,169 @@
+name: Self-test Git project tooling
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_TOOL_REF: dc94cf120ea4a196c9fc3daff4d22984ea4481c1
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Create clean consumer fixture
+        shell: bash
+        env:
+          TOOL_BRANCH: ${{ github.head_ref || 'main' }}
+        run: |
+          set -euo pipefail
+          repo="$RUNNER_TEMP/git-project-fixture"
+          mkdir -p "$repo"
+          cp fixture/project.yml fixture/project.example.yml "$repo/"
+          cp bootstrap/consumer-bootstrap.sh "$repo/bootstrap.sh"
+          cp bootstrap/consumer-update.sh "$repo/update-repo.sh"
+          chmod +x "$repo/bootstrap.sh" "$repo/update-repo.sh"
+
+          git -C "$repo" init
+          git -C "$repo" config user.name tool-git-project-test
+          git -C "$repo" config user.email tool-git-project-test@example.invalid
+          git -C "$repo" submodule add https://github.com/brainboxemb/tool.git-project.git tools/tool.git-project
+          git -C "$repo/tools/tool.git-project" fetch origin "$TOOL_BRANCH"
+          git -C "$repo/tools/tool.git-project" checkout --detach "origin/$TOOL_BRANCH"
+          tool_sha="$(git -C "$repo/tools/tool.git-project" rev-parse HEAD)"
+
+          git -C "$repo" add project.yml project.example.yml bootstrap.sh update-repo.sh .gitmodules tools/tool.git-project
+          git -C "$repo" commit -m fixture
+
+          # Emulate a normal clone without --recurse-submodules: the gitlink is
+          # committed, but the bootstrap tool worktree is not initialized.
+          git -C "$repo" submodule deinit -f -- tools/tool.git-project
+          rm -rf "$repo/tools/tool.git-project"
+
+          echo "FIXTURE_REPO=$repo" >> "$GITHUB_ENV"
+          echo "EXPECTED_TOOL_SHA=$tool_sha" >> "$GITHUB_ENV"
+      - name: Bootstrap from project root
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$FIXTURE_REPO"
+          ./bootstrap.sh
+          test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
+          test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
+          git ls-files --stage -- tools/tool.git-project | grep '^160000 '
+          git ls-files --stage -- tools/tool.java-project | grep '^160000 '
+          tools/tool.git-project/git-project.sh status --repo .
+      - name: Root update launcher is idempotent
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$FIXTURE_REPO"
+          ./update-repo.sh
+          test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
+          test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
+      - name: Dirty dependency is protected
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$FIXTURE_REPO"
+          printf '\nlocal test change\n' >> tools/tool.java-project/README.md
+          if ./update-repo.sh > dirty-update.log 2>&1; then
+            cat dirty-update.log
+            echo "update unexpectedly succeeded for a dirty dependency" >&2
+            exit 1
+          fi
+          cat dirty-update.log
+          grep -q "has local changes" dirty-update.log
+          git -C tools/tool.java-project reset --hard HEAD
+
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Create clean consumer fixture
+        shell: pwsh
+        env:
+          TOOL_BRANCH: ${{ github.head_ref || 'main' }}
+        run: |
+          $repo = Join-Path $env:RUNNER_TEMP "git-project-fixture"
+          New-Item -ItemType Directory -Force -Path $repo | Out-Null
+          Copy-Item fixture/project.yml, fixture/project.example.yml -Destination $repo
+          Copy-Item bootstrap/consumer-bootstrap.ps1 -Destination (Join-Path $repo "bootstrap.ps1")
+          Copy-Item bootstrap/consumer-update.ps1 -Destination (Join-Path $repo "update-repo.ps1")
+
+          git -C $repo init
+          git -C $repo config user.name tool-git-project-test
+          git -C $repo config user.email tool-git-project-test@example.invalid
+          git -C $repo submodule add https://github.com/brainboxemb/tool.git-project.git tools/tool.git-project
+          git -C "$repo/tools/tool.git-project" fetch origin $env:TOOL_BRANCH
+          git -C "$repo/tools/tool.git-project" checkout --detach "origin/$env:TOOL_BRANCH"
+          $toolSha = (git -C "$repo/tools/tool.git-project" rev-parse HEAD).Trim()
+
+          git -C $repo add project.yml project.example.yml bootstrap.ps1 update-repo.ps1 .gitmodules tools/tool.git-project
+          git -C $repo commit -m fixture
+
+          git -C $repo submodule deinit -f -- tools/tool.git-project
+          Remove-Item -Recurse -Force (Join-Path $repo "tools/tool.git-project") -ErrorAction SilentlyContinue
+
+          "FIXTURE_REPO=$repo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "EXPECTED_TOOL_SHA=$toolSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Bootstrap from project root
+        shell: pwsh
+        run: |
+          Push-Location $env:FIXTURE_REPO
+          try {
+            .\bootstrap.ps1
+            $toolActual = (git -C tools/tool.git-project rev-parse HEAD).Trim()
+            if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA: $toolActual" }
+            $javaActual = (git -C tools/tool.java-project rev-parse HEAD).Trim()
+            if ($javaActual -ne $env:JAVA_TOOL_REF) { throw "Unexpected Java tool SHA: $javaActual" }
+            $toolEntry = git ls-files --stage -- tools/tool.git-project
+            $javaEntry = git ls-files --stage -- tools/tool.java-project
+            if ($toolEntry -notmatch '^160000\s') { throw "Bootstrap tool is not a gitlink." }
+            if ($javaEntry -notmatch '^160000\s') { throw "Java tool is not a gitlink." }
+            .\tools\tool.git-project\git-project.ps1 status -RepoRoot .
+          } finally {
+            Pop-Location
+          }
+      - name: Root update launcher is idempotent
+        shell: pwsh
+        run: |
+          Push-Location $env:FIXTURE_REPO
+          try {
+            .\update-repo.ps1
+            $toolActual = (git -C tools/tool.git-project rev-parse HEAD).Trim()
+            if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA after update: $toolActual" }
+            $javaActual = (git -C tools/tool.java-project rev-parse HEAD).Trim()
+            if ($javaActual -ne $env:JAVA_TOOL_REF) { throw "Unexpected Java tool SHA after update: $javaActual" }
+          } finally {
+            Pop-Location
+          }
+      - name: Dirty dependency is protected
+        shell: pwsh
+        run: |
+          Push-Location $env:FIXTURE_REPO
+          try {
+            Add-Content -Path tools/tool.java-project/README.md -Value "local test change"
+            $failedAsExpected = $false
+            try {
+              .\update-repo.ps1
+            } catch {
+              $failedAsExpected = $true
+              if ($_.Exception.Message -notmatch 'local changes') { throw }
+              Write-Host $_.Exception.Message
+            }
+            if (-not $failedAsExpected) { throw "update unexpectedly succeeded for a dirty dependency" }
+            git -C tools/tool.java-project reset --hard HEAD
+          } finally {
+            Pop-Location
+          }

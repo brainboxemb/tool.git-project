@@ -1,0 +1,3 @@
+example:
+  purpose: opaque-profile-fixture
+  note: tool.git-project must verify this file exists but must not interpret it
