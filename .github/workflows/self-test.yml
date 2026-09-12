@@ -34,6 +34,9 @@ jobs:
         run: |
           set -euo pipefail
           ./git-project.sh validate --repo "$FIXTURE_REPO"
+          git -C "$FIXTURE_REPO" submodule add --force https://github.com/brainboxemb/tool.java-project.git tools/tool.java-project
+          echo "Dependency status immediately after git submodule add:"
+          git -C "$FIXTURE_REPO/tools/tool.java-project" status --porcelain=v1 -uall || true
           ./git-project.sh bootstrap --repo "$FIXTURE_REPO"
           ./git-project.sh status --repo "$FIXTURE_REPO"
           test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "5a7135194b94644129d05a5f4a8ceffc5de499bf"
@@ -67,6 +70,9 @@ jobs:
         shell: pwsh
         run: |
           .\git-project.ps1 validate -RepoRoot $env:FIXTURE_REPO
+          git -C $env:FIXTURE_REPO submodule add --force https://github.com/brainboxemb/tool.java-project.git tools/tool.java-project
+          Write-Host "Dependency status immediately after git submodule add:"
+          git -C "$env:FIXTURE_REPO/tools/tool.java-project" status --porcelain=v1 -uall
           .\git-project.ps1 bootstrap -RepoRoot $env:FIXTURE_REPO
           .\git-project.ps1 status -RepoRoot $env:FIXTURE_REPO
           $actual = (git -C "$env:FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD).Trim()
