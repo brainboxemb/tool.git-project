@@ -34,19 +34,16 @@ jobs:
         run: |
           set -euo pipefail
           ./git-project.sh validate --repo "$FIXTURE_REPO"
-          git -C "$FIXTURE_REPO" submodule add --force https://github.com/brainboxemb/tool.java-project.git tools/tool.java-project
-          echo "Dependency status immediately after git submodule add:"
-          git -C "$FIXTURE_REPO/tools/tool.java-project" status --porcelain=v1 -uall || true
           ./git-project.sh bootstrap --repo "$FIXTURE_REPO"
           ./git-project.sh status --repo "$FIXTURE_REPO"
-          test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "5a7135194b94644129d05a5f4a8ceffc5de499bf"
+          test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "dc94cf120ea4a196c9fc3daff4d22984ea4481c1"
           git -C "$FIXTURE_REPO" ls-files --stage -- tools/tool.java-project | grep '^160000 '
       - name: Controlled update is idempotent
         shell: bash
         run: |
           set -euo pipefail
           ./git-project.sh update --repo "$FIXTURE_REPO"
-          test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "5a7135194b94644129d05a5f4a8ceffc5de499bf"
+          test "$(git -C "$FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD)" = "dc94cf120ea4a196c9fc3daff4d22984ea4481c1"
 
   windows:
     runs-on: windows-2025
@@ -70,13 +67,10 @@ jobs:
         shell: pwsh
         run: |
           .\git-project.ps1 validate -RepoRoot $env:FIXTURE_REPO
-          git -C $env:FIXTURE_REPO submodule add --force https://github.com/brainboxemb/tool.java-project.git tools/tool.java-project
-          Write-Host "Dependency status immediately after git submodule add:"
-          git -C "$env:FIXTURE_REPO/tools/tool.java-project" status --porcelain=v1 -uall
           .\git-project.ps1 bootstrap -RepoRoot $env:FIXTURE_REPO
           .\git-project.ps1 status -RepoRoot $env:FIXTURE_REPO
           $actual = (git -C "$env:FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD).Trim()
-          if ($actual -ne "5a7135194b94644129d05a5f4a8ceffc5de499bf") { throw "Unexpected dependency SHA: $actual" }
+          if ($actual -ne "dc94cf120ea4a196c9fc3daff4d22984ea4481c1") { throw "Unexpected dependency SHA: $actual" }
           $entry = git -C $env:FIXTURE_REPO ls-files --stage -- tools/tool.java-project
           if ($entry -notmatch '^160000\s') { throw "Dependency is not a gitlink." }
       - name: Controlled update is idempotent
@@ -84,4 +78,4 @@ jobs:
         run: |
           .\git-project.ps1 update -RepoRoot $env:FIXTURE_REPO
           $actual = (git -C "$env:FIXTURE_REPO/tools/tool.java-project" rev-parse HEAD).Trim()
-          if ($actual -ne "5a7135194b94644129d05a5f4a8ceffc5de499bf") { throw "Unexpected dependency SHA after update: $actual" }
+          if ($actual -ne "dc94cf120ea4a196c9fc3daff4d22984ea4481c1") { throw "Unexpected dependency SHA after update: $actual" }
