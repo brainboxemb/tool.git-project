@@ -45,4 +45,13 @@ When extending the format, update:
 
 ## Pull requests
 
-Use issue -> feature branch -> draft PR -> self-test/evidence -> review -> merge. Keep changes scoped and prove Windows and Linux behaviour where the change affects local tooling.
+Use one work-item number end to end:
+
+1. create issue `#N` to reserve the work number;
+2. create `feature/pr-N-<short-slug>` from the intended target branch;
+3. make the smallest initial commit on that branch;
+4. convert that exact issue directly into draft PR `#N`;
+5. continue implementation, self-test/evidence and review in that same PR;
+6. merge only after the scoped evidence is complete.
+
+Do not create a separate pull request with a new number for the same work item when issue conversion is available. Keep changes scoped and prove Windows and Linux behaviour where the change affects local tooling.
