@@ -1,8 +1,8 @@
 # tool.git-project
 
-Reusable Git project tooling for dependency bootstrap, pinned external repositories, submodule management, controlled updates, and generic repository Git lifecycle helpers.
+Reusable generic repository tooling for Git dependency bootstrap, pinned external repositories, repository lifecycle operations, and optional Moon build orchestration.
 
-`tool.git-project` owns the repository-level dependency mechanism shared by Java, SCAD, documentation, and future engineering projects. It deliberately does **not** own Java/Maven, OpenSCAD/SCons, documentation-rendering, Docker, or product-domain behaviour.
+`tool.git-project` owns the generic repository mechanism shared by Java, SCAD, documentation, and future engineering projects. Its **core Git path remains Git-only**. Moon is an explicit opt-in capability for repositories that want faster build/release feedback through high-level task selection and output-cache hydration. The tool deliberately does **not** own Java/Maven, OpenSCAD/SCons, documentation-rendering, Docker, or product-domain behaviour.
 
 Release history: [`CHANGELOG.md`](CHANGELOG.md)
 
@@ -22,20 +22,22 @@ project.yml
        |
        v
 tool.git-project
-  validate / bootstrap / status / update
+  Git-only validate / bootstrap / status / update
   generic Git lifecycle workflows
+  optional Moon orchestration companion
        |
        +--> managed Git submodules / pinned refs
+       +--> Moon high-level task/cache/hydration layer
 
 project.java.yml  -> tool.java-project
 project.scad.yml  -> tool.scad-project
 ```
 
-The Git tool validates that configured profile files exist, but treats their contents as opaque.
+The Git tool validates that configured profile files exist, but treats their contents as opaque. Moon-enabled repositories keep their task graph in Moon's own `.moon/workspace.yml` and `moon.yml`; `tool.git-project` does not invent a second task-graph format.
 
 ## Tool release baseline
 
-`VERSION` is the source-controlled release version of `tool.git-project`. Reusable GitHub workflows are released together with the normal Git tooling and are consumed through an immutable release tag, never through moving `main`.
+`VERSION` is the source-controlled release version of `tool.git-project`. Reusable GitHub workflows/actions are released together with the normal Git tooling and are consumed through an immutable release tag, never through moving `main`.
 
 For maximum reproducibility a consumer may additionally record or pin the exact commit behind the release tag in its committed gitlink/provenance. A normal release is created only from the exact current `main` commit after the required self-tests are green.
 
@@ -51,7 +53,7 @@ A consumer pins it directly through the committed Git submodule/gitlink at:
 tools/tool.git-project
 ```
 
-That gives a normal clean clone an exact bootstrap-tool commit without recursive self-management. The root `bootstrap.ps1` / `bootstrap.sh` launchers restore that committed gitlink and then delegate to the pinned tool.
+That gives a normal clean clone an exact bootstrap-tool commit without recursive self-management. The root `bootstrap.ps1` / `bootstrap.sh` launchers restore that exact pinned commit and then delegate to the pinned tool.
 
 When creating a new consumer repository, register this bootstrap dependency once, checkout the desired tool commit/tag, and commit both `.gitmodules` and the gitlink. After that every clone is deterministic.
 
@@ -73,12 +75,12 @@ dependencies:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.java-project.git
     path: tools/tool.java-project
-    ref: dc94cf120ea4a196c9fc3daff4d22984ea4481c1
+    ref: v0.1.2
 ```
 
 See [`docs/project-format.md`](docs/project-format.md) for the contract.
 
-## Local commands
+## Local Git commands
 
 PowerShell / Windows:
 
@@ -108,6 +110,39 @@ The commands can also operate on another local repository, which is useful for C
 - `update` — fetch managed dependencies and align their gitlinks to the refs currently requested by `project.yml`; dirty dependencies are refused.
 
 After `bootstrap` or `update`, review parent-repository changes with `git status`. Dependency updates intentionally appear as normal reviewable gitlink changes.
+
+## Optional Moon orchestration
+
+Moon is an **opt-in companion**, not a prerequisite for the Git commands above. It exists to shorten build/release feedback by skipping unchanged high-level domain work and hydrating reusable outputs/evidence on fresh runners.
+
+Local entrypoints:
+
+```bash
+./moon-project.sh bootstrap
+./moon-project.sh validate --repo .
+./moon-project.sh cache-paths --repo .
+./moon-project.sh run consumer:java.canonical --repo .
+```
+
+PowerShell uses the equivalent `moon-project.ps1` commands.
+
+For GitHub Actions, Moon-capable jobs should checkout complete history while keeping the clone blobless:
+
+```yaml
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+  with:
+    fetch-depth: 0
+    filter: blob:none
+
+- uses: brainboxemb/tool.git-project/moon@v0.2.0
+  with:
+    task: consumer:java.canonical
+    cache-namespace: java-canonical
+```
+
+The action caches the pinned Moon runtime separately from Moon's portable `hashes` / `outputs` task cache. Domain task outputs retain their original producer evidence; the current Moon invocation writes separate materialization evidence.
+
+See [`docs/moon-orchestration.md`](docs/moon-orchestration.md) for the full production contract and ownership boundary.
 
 ## Consumer bootstrap launchers
 
@@ -166,7 +201,7 @@ permissions:
 
 jobs:
   cleanup:
-    uses: brainboxemb/tool.git-project/.github/workflows/reusable-pr-preview-cleanup.yml@v0.1.1
+    uses: brainboxemb/tool.git-project/.github/workflows/reusable-pr-preview-cleanup.yml@v0.2.0
     with:
       pr_number: ${{ github.event.pull_request.number }}
       preview_suffixes: |
@@ -189,10 +224,10 @@ Preferred refs for dependencies managed through `project.yml` are:
 
 Branch refs are supported but are not immutable. A bootstrap/update resolves the branch to a concrete commit and records that commit through the parent repository gitlink.
 
-The bootstrap engine itself is always pinned by its parent gitlink. Reusable GitHub workflows use released tags; do not call them from moving `main`.
+The bootstrap engine itself is always pinned by its parent gitlink. Reusable GitHub workflows/actions use released tags; do not call them from moving `main`.
 
 ## Self-test fixture
 
 `fixture/` is intentionally build-system-neutral. CI creates a temporary Git consumer repository, pins the current `tool.git-project` revision as its bootstrap gitlink, removes the initialized worktree to emulate a fresh clone, and then proves root-level bootstrap plus managed dependency validation, status and idempotent update on both Linux and Windows.
 
-Separate lifecycle tests exercise PR-preview cleanup, generated-output publication, and the reusable release contract. The release test runs the generic workflow in side-effect-free dry-run mode; the publication test runs in PR, `main`, and release-tag contexts, verifies the generated branch content, and removes its disposable test branch after validation.
+Separate lifecycle tests exercise PR-preview cleanup, generated-output publication, the reusable release contract, and the optional Moon production interface. Moon's architectural behavior was qualified before production implementation; the owner regression here only proves the released wrapper preserves the accepted cache/hydration contract on Linux and Windows.
