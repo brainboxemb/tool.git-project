@@ -16,10 +16,12 @@ jobs:
     steps:
       - name: Prepare fixture output
         shell: bash
+        env:
+          SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p publication
-          printf '%s\n' "$GITHUB_SHA" > publication/source-sha.txt
+          printf '%s\n' "$SOURCE_REVISION" > publication/source-sha.txt
           printf 'generated-output publication test\n' > publication/README.md
       - name: Upload fixture output
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -35,10 +37,22 @@ jobs:
     uses: ./.github/workflows/reusable-generated-output-publish.yml
     with:
       artifact_name: generated-output-publication-test
-      branch_suffix: publication-test
+      branch_suffix: publication-test-${{ github.run_id }}
+
+  stale-publish:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/reusable-generated-output-publish.yml
+    with:
+      artifact_name: generated-output-publication-test
+      branch_suffix: publication-stale-test-${{ github.run_id }}
+      # Deliberately not the current PR/main/tag revision. The publisher must
+      # complete successfully without materializing this stale branch.
+      source_revision: '0000000000000000000000000000000000000000'
 
   verify-and-clean:
-    needs: publish
+    needs: [publish, stale-publish]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -48,20 +62,27 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - name: Verify target mapping and published content
+      - name: Verify current publication and stale suppression
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          EXPECTED_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_ID: ${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
 
+          normal_suffix="publication-test-${RUN_ID}"
+          stale_suffix="publication-stale-test-${RUN_ID}"
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            target_branch="dev/pr-${PR_NUMBER}/publication-test"
+            target_branch="dev/pr-${PR_NUMBER}/${normal_suffix}"
+            stale_branch="dev/pr-${PR_NUMBER}/${stale_suffix}"
           elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-            target_branch="prod/publication-test"
+            target_branch="prod/${normal_suffix}"
+            stale_branch="prod/${stale_suffix}"
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            target_branch="rel/${GITHUB_REF_NAME}/publication-test"
+            target_branch="rel/${GITHUB_REF_NAME}/${normal_suffix}"
+            stale_branch="rel/${GITHUB_REF_NAME}/${stale_suffix}"
           else
             echo "ERROR: unexpected test context: $GITHUB_REF" >&2
             exit 1
@@ -72,10 +93,17 @@ jobs:
 
           cleanup() {
             git push origin --delete "$target_branch" >/dev/null 2>&1 || true
+            git push origin --delete "$stale_branch" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
           git fetch origin "refs/heads/${target_branch}:refs/remotes/origin/${target_branch}"
-          test "$(git show "refs/remotes/origin/${target_branch}:source-sha.txt" | tr -d '\r\n')" = "$GITHUB_SHA"
+          test "$(git show "refs/remotes/origin/${target_branch}:source-sha.txt" | tr -d '\r\n')" = "$EXPECTED_SOURCE_REVISION"
           git show "refs/remotes/origin/${target_branch}:README.md" | grep -F 'generated-output publication test'
-          echo "Verified generated-output publication at ${target_branch}"
+
+          if git ls-remote --exit-code --heads origin "refs/heads/${stale_branch}" >/dev/null 2>&1; then
+            echo "ERROR: stale generated-output branch was unexpectedly published: ${stale_branch}" >&2
+            exit 1
+          fi
+
+          echo "Verified current publication at ${target_branch} and stale suppression for ${stale_branch}"
