@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.2.1 — 2026-09-13
+
+### Fixed
+
+- Correctly detect committed but uninitialized dependency gitlinks instead of mistaking the parent repository for the dependency worktree.
+- Initialize those dependency submodules before resolving declared release refs on Linux and native Windows.
+- Report committed but uninitialized dependency gitlinks accurately in status output.
+- Add Linux/native-Windows regression coverage matching a fresh consumer checkout with both the bootstrap-tool gitlink and dependency gitlink deinitialized.
+
 ## 0.2.0 — 2026-09-13
 
 ### Added
@@ -70,16 +79,22 @@
 
 ### Changed
 
-- Domain tools now only need to produce their prepared output bundle and declare the suffix they own; generic branch materialization stays in `tool.git-project`.
+- Generated-output publication is now repository-generic and accepts the prepared Actions artifact plus branch suffix from the domain owner.
+- Java remains responsible for preparing `bld` output; SCAD/docs can adopt the same branch-materialization primitive later without moving domain build logic into this repository.
 
 ## 0.1.0 — 2026-09-13
 
 ### Added
 
-- Generic `project.yml` contract for project metadata, profile references, and Git dependencies.
-- PowerShell and POSIX `validate`, `bootstrap`, `status`, and `update` commands.
-- Git-submodule registration, synchronisation, pinned-ref checkout, clean-state protection, and local status reporting.
-- Consumer bootstrap/update launcher templates.
-- Generic fixture and Windows/Linux self-test workflow.
-- Reusable PR-preview branch cleanup for generated `dev/pr-<N>/<suffix>` branches, with optional merged source-branch cleanup.
-- Tagged/released workflow baseline so reusable GitHub workflows are consumed from immutable tool releases rather than moving `main`.
+- Generic reusable PR-preview cleanup workflow for `dev/pr-<N>/<suffix>` branches.
+- Optional same-repository merged source-branch cleanup while protecting default, `prod/*`, release and arbitrary refs.
+- Source-controlled `VERSION` and guarded release workflow for reusable cross-repository interfaces.
+- Linux and Windows owner self-tests plus live temporary-ref cleanup evidence.
+
+### Fixed
+
+- Protect dirty dependency worktrees before switching a committed gitlink during bootstrap/update on both Linux and Windows.
+
+### Changed
+
+- Cross-repository reusable workflows are consumed from deliberate released tags instead of moving `main`.
