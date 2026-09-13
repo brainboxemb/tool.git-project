@@ -22,10 +22,9 @@ function Remove-Generated([string]$Repository) {
 try {
     Set-Location $Root
 
-    # Existing dependency tooling remains valid before a Moon runtime exists.
-    & (Join-Path $Root 'git-project.ps1') validate -RepoRoot (Join-Path $Root 'fixture') *> $null
-    if ($LASTEXITCODE -ne 0) { throw 'Git-only validation failed before Moon bootstrap.' }
-
+    # The separate Self-test Git project tooling workflow proves the existing
+    # Git-only core on this same PR head. This regression starts at the optional
+    # Moon boundary rather than duplicating that consumer-bootstrap fixture.
     $timer = [System.Diagnostics.Stopwatch]::StartNew()
     $moon = (& (Join-Path $Root 'moon-project.ps1') bootstrap -InstallRoot $InstallRoot | Select-Object -Last 1).Trim()
     $timer.Stop()
@@ -80,7 +79,6 @@ try {
         moon_version = '2.5.4'
         bootstrap_ms = $bootstrapMs
         checks = [ordered]@{
-            git_core_without_moon = $true
             cold_execution = $true
             exact_rerun_skips_command = $true
             local_hydration_skips_command = $true
@@ -95,7 +93,9 @@ try {
 finally {
     Set-Location $Root
     Remove-Generated $Root
-    & git -C $Root worktree remove --force $Fresh *> $null
+    if (Test-Path -LiteralPath $Fresh) {
+        & git -C $Root worktree remove --force $Fresh *> $null
+    }
     if (Test-Path -LiteralPath $TempRoot) { Remove-Item -LiteralPath $TempRoot -Recurse -Force }
     Remove-Item Env:MOON_BIN -ErrorAction SilentlyContinue
 }
