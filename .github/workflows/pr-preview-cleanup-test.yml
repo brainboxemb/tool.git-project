@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           preview_suffix="cleanup-self-test-${GITHUB_RUN_ID}"
-          preview_branch="dev/pr-999999/${preview_suffix}"
+          preview_branch="dev/pr-4/${preview_suffix}"
           protected_branch="prod/cleanup-self-test-${GITHUB_RUN_ID}"
 
           git config --global credential.helper store
@@ -46,7 +46,7 @@ jobs:
       contents: write
     uses: ./.github/workflows/reusable-pr-preview-cleanup.yml
     with:
-      pr_number: 999999
+      pr_number: 4
       preview_suffixes: ${{ needs.prepare.outputs.preview_suffix }}
       delete_source_branch: false
 
@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          preview_branch="dev/pr-999999/${PREVIEW_SUFFIX}"
+          preview_branch="dev/pr-4/${PREVIEW_SUFFIX}"
 
           if git ls-remote --exit-code --heads origin "refs/heads/${preview_branch}" >/dev/null 2>&1; then
             echo "ERROR: preview branch still exists: ${preview_branch}" >&2
@@ -81,4 +81,4 @@ jobs:
           git config --global credential.helper store
           printf 'https://x-access-token:%s@github.com\n' "$GITHUB_TOKEN" > ~/.git-credentials
           git push origin --delete "$PROTECTED_BRANCH"
-          echo "Cleanup safety boundary verified."
+          echo "Single-digit PR cleanup safety boundary verified."
