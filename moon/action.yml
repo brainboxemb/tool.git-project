@@ -34,9 +34,9 @@ runs:
         path: |
           ${{ inputs.working-directory }}/.moon/cache/hashes
           ${{ inputs.working-directory }}/.moon/cache/outputs
-        key: tool-git-project-moon-${{ runner.os }}-${{ inputs.cache-namespace }}-${{ github.run_id }}-${{ github.run_attempt }}
+        key: tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache-namespace }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: |
-          tool-git-project-moon-${{ runner.os }}-${{ inputs.cache-namespace }}-
+          tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache-namespace }}-
 
     - name: Run Moon task on Linux
       if: runner.os == 'Linux'
