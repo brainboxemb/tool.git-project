@@ -1,0 +1,97 @@
+name: Test Moon production orchestration
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/moon-orchestration-test.yml'
+      - '.moon/**'
+      - 'moon/**'
+      - 'moon.yml'
+      - 'moon-project.sh'
+      - 'moon-project.ps1'
+      - 'support/test-moon.sh'
+      - 'support/test-moon.ps1'
+      - 'fixture/moon/**'
+      - '.gitignore'
+      - 'VERSION'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/moon-orchestration-test.yml'
+      - '.moon/**'
+      - 'moon/**'
+      - 'moon.yml'
+      - 'moon-project.sh'
+      - 'moon-project.ps1'
+      - 'support/test-moon.sh'
+      - 'support/test-moon.ps1'
+      - 'fixture/moon/**'
+      - '.gitignore'
+      - 'VERSION'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  moon-production-interface:
+    name: Moon production interface / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Moon-compatible history without submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Run native Linux production regression
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash support/test-moon.sh
+
+      - name: Run native Windows production regression
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\support\test-moon.ps1
+
+      - name: Invoke local production composite action
+        uses: ./moon
+        with:
+          task: fixture:cache.fixture
+          cache-namespace: owner-regression
+
+      - name: Verify composite action output on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f fixture/moon/out/artifact.txt
+          test -f fixture/moon/out/evidence/execution.log
+          test -f .moon/invocations/fixture_cache.fixture/materialization.json
+
+      - name: Verify composite action output on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath 'fixture/moon/out/artifact.txt')) { throw 'Composite action artifact missing.' }
+          if (-not (Test-Path -LiteralPath 'fixture/moon/out/evidence/execution.log')) { throw 'Composite action producer evidence missing.' }
+          if (-not (Test-Path -LiteralPath '.moon/invocations/fixture_cache.fixture/materialization.json')) { throw 'Composite action materialization evidence missing.' }
+
+      - name: Upload Moon production evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: moon-production-${{ runner.os }}
+          path: |
+            moon-test-results
+            .moon/invocations
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 14

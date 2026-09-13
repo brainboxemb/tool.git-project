@@ -1,0 +1,10 @@
+tasks:
+  cache.fixture:
+    command: 'python fixture/moon/task.py'
+    inputs:
+      - 'fixture/moon/input.txt'
+      - 'fixture/moon/task.py'
+    outputs:
+      - 'fixture/moon/out'
+    options:
+      cache: true

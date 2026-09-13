@@ -1,0 +1,61 @@
+name: Moon repository task
+description: Run one repository Moon task with pinned runtime bootstrap and portable Moon cache reuse.
+
+inputs:
+  task:
+    description: Moon target to run, for example consumer:java.canonical.
+    required: true
+  working-directory:
+    description: Repository worktree containing .moon/workspace.yml and moon.yml.
+    required: false
+    default: .
+  cache-namespace:
+    description: Stable repository-local namespace for the portable Moon cache.
+    required: false
+    default: repository
+
+outputs:
+  evidence-directory:
+    description: Directory containing current Moon invocation/materialization evidence.
+    value: ${{ inputs.working-directory }}/.moon/invocations
+
+runs:
+  using: composite
+  steps:
+    - name: Restore pinned Moon runtime
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ runner.temp }}/tool-git-project/moon-runtime
+        key: tool-git-project-moon-runtime-${{ runner.os }}-2.5.4
+
+    - name: Restore portable Moon task cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ${{ inputs.working-directory }}/.moon/cache/hashes
+          ${{ inputs.working-directory }}/.moon/cache/outputs
+        key: tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache-namespace }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache-namespace }}-
+
+    - name: Run Moon task on Linux
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        MOON_TASK: ${{ inputs.task }}
+        MOON_REPO: ${{ inputs.working-directory }}
+        MOON_INSTALL_ROOT: ${{ runner.temp }}/tool-git-project/moon-runtime
+      run: |
+        set -euo pipefail
+        bash "$GITHUB_ACTION_PATH/../moon-project.sh" run "$MOON_TASK" --repo "$MOON_REPO"
+
+    - name: Run Moon task on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        MOON_TASK: ${{ inputs.task }}
+        MOON_REPO: ${{ inputs.working-directory }}
+        MOON_INSTALL_ROOT: ${{ runner.temp }}/tool-git-project/moon-runtime
+      run: |
+        $script = Join-Path $env:GITHUB_ACTION_PATH '..\moon-project.ps1'
+        & $script run $env:MOON_TASK -Repo $env:MOON_REPO
