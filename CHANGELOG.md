@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.1.1 — 2026-09-13
+
+### Added
+
+- Generic generated-output publication workflow for the shared repository lifecycle:
+  - pull request #N -> `dev/pr-N/<suffix>`;
+  - `main` -> `prod/<suffix>`;
+  - release tag `vX.Y.Z` -> `rel/vX.Y.Z/<suffix>`.
+- Event-context publication self-test that materializes a disposable generated branch, verifies its content, and removes it again.
+- Release-gate proof that dispatches the publication test on the newly created release tag before publishing the GitHub Release.
+
+### Changed
+
+- Domain tools now only need to produce their prepared output bundle and declare the suffix they own; generic branch materialization stays in `tool.git-project`.
+
 ## 0.1.0 — 2026-09-13
 
 ### Added
