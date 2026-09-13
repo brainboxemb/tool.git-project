@@ -1,0 +1,265 @@
+name: Reusable repository release lifecycle
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Optional explicit immutable release tag (vX.Y.Z). Release-request callers may leave this empty.
+        required: false
+        type: string
+        default: ''
+      release_sha:
+        description: Optional exact release commit SHA. Release-request callers may leave this empty.
+        required: false
+        type: string
+        default: ''
+      main_branch:
+        description: Production branch whose exact head may be released.
+        required: false
+        type: string
+        default: main
+      version_file:
+        description: Source-controlled file containing X.Y.Z.
+        required: false
+        type: string
+        default: VERSION
+      changelog_file:
+        description: Changelog containing a heading for the release version.
+        required: false
+        type: string
+        default: CHANGELOG.md
+      required_main_workflows:
+        description: Optional newline-separated workflow filenames that must have a successful push run on the release SHA.
+        required: false
+        type: string
+        default: ''
+      tagged_verification_workflow:
+        description: Optional workflow filename to dispatch on the newly created release tag.
+        required: false
+        type: string
+        default: ''
+      wait_for_tagged_verification:
+        description: Wait for the dispatched tagged verification workflow and require success.
+        required: false
+        type: boolean
+        default: false
+      create_github_release:
+        description: Create a generic GitHub Release from the matching CHANGELOG section after tagged verification.
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: Validate release metadata without creating tags, dispatching workflows, releases, or deleting refs.
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      version:
+        description: Resolved vX.Y.Z tag.
+        value: ${{ jobs.release.outputs.version }}
+      release_sha:
+        description: Resolved exact release commit SHA.
+        value: ${{ jobs.release.outputs.release_sha }}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      release_sha: ${{ steps.release.outputs.release_sha }}
+
+    steps:
+      - name: Checkout caller repository with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve and validate release request
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_RELEASE_SHA: ${{ inputs.release_sha }}
+          MAIN_BRANCH: ${{ inputs.main_branch }}
+          VERSION_FILE: ${{ inputs.version_file }}
+          CHANGELOG_FILE: ${{ inputs.changelog_file }}
+          REQUIRED_MAIN_WORKFLOWS: ${{ inputs.required_main_workflows }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          version="${INPUT_VERSION}"
+          release_sha="${INPUT_RELEASE_SHA}"
+
+          if [[ "${DRY_RUN}" != "true" && "${EVENT_NAME}" == "push" && "${REF_NAME}" == release-request/* ]]; then
+            if [[ "${ACTOR}" != "${REPOSITORY_OWNER}" ]]; then
+              echo "ERROR: release-request branches may only be created by ${REPOSITORY_OWNER}" >&2
+              exit 1
+            fi
+
+            request="${REF_NAME#release-request/}"
+            IFS='/' read -r version release_sha extra <<< "${request}"
+            if [[ -z "${version}" || -z "${release_sha}" || -n "${extra:-}" ]]; then
+              echo "ERROR: release request branch must be release-request/vX.Y.Z/<40-char-sha>" >&2
+              exit 1
+            fi
+          fi
+
+          if [[ ! "${release_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: release_sha must be an exact 40-character commit SHA" >&2
+            exit 1
+          fi
+
+          git fetch --force --tags origin "${MAIN_BRANCH}"
+          if ! git cat-file -e "${release_sha}^{commit}" 2>/dev/null; then
+            echo "ERROR: release_sha is not a known commit: ${release_sha}" >&2
+            exit 1
+          fi
+
+          if [[ "${DRY_RUN}" != "true" ]]; then
+            main_sha="$(git rev-parse "origin/${MAIN_BRANCH}")"
+            if [[ "${release_sha}" != "${main_sha}" ]]; then
+              echo "ERROR: release_sha ${release_sha} is not current ${MAIN_BRANCH} ${main_sha}" >&2
+              exit 1
+            fi
+          fi
+
+          tool_version="$(git show "${release_sha}:${VERSION_FILE}" | tr -d '\r\n')"
+          if [[ -z "${version}" ]]; then
+            version="v${tool_version}"
+          fi
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: version must match vX.Y.Z" >&2
+            exit 1
+          fi
+          if [[ "${version}" != "v${tool_version}" ]]; then
+            echo "ERROR: requested ${version}, but ${VERSION_FILE} declares v${tool_version}" >&2
+            exit 1
+          fi
+
+          git show "${release_sha}:${CHANGELOG_FILE}" | grep -E "^## ${tool_version}( |$)" >/dev/null
+
+          if [[ "${DRY_RUN}" != "true" ]] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+            echo "ERROR: release tag already exists: ${version}" >&2
+            exit 1
+          fi
+
+          if [[ "${DRY_RUN}" != "true" && -n "${REQUIRED_MAIN_WORKFLOWS}" ]]; then
+            while IFS= read -r workflow; do
+              [[ -z "${workflow}" ]] && continue
+              run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?head_sha=${release_sha}&branch=${MAIN_BRANCH}&event=push&status=completed" --jq '.workflow_runs[] | select(.conclusion == "success") | .id' | head -n 1)"
+              if [[ -z "${run_id}" ]]; then
+                echo "ERROR: no successful ${MAIN_BRANCH} run for ${workflow} at ${release_sha}" >&2
+                exit 1
+              fi
+              echo "Verified ${workflow} run ${run_id}"
+            done <<< "${REQUIRED_MAIN_WORKFLOWS}"
+          fi
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "release_sha=${release_sha}" >> "${GITHUB_OUTPUT}"
+          echo "Validated ${version} @ ${release_sha}${DRY_RUN:+ (dry-run)}"
+
+      - name: Stop after dry-run validation
+        if: ${{ inputs.dry_run }}
+        run: echo 'Generic release metadata validation completed without side effects.'
+
+      - name: Create annotated release tag
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+          repo_name="${GITHUB_REPOSITORY#*/}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${VERSION}" "${RELEASE_SHA}" -m "${repo_name} ${VERSION}"
+          git push origin "refs/tags/${VERSION}"
+
+      - name: Dispatch tagged verification
+        if: ${{ !inputs.dry_run && inputs.tagged_verification_workflow != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          WORKFLOW: ${{ inputs.tagged_verification_workflow }}
+        run: |
+          set -euo pipefail
+          gh workflow run "${WORKFLOW}" --ref "${VERSION}"
+          echo "Dispatched ${WORKFLOW} on ${VERSION}."
+
+      - name: Wait for tagged verification
+        if: ${{ !inputs.dry_run && inputs.tagged_verification_workflow != '' && inputs.wait_for_tagged_verification }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
+          WORKFLOW: ${{ inputs.tagged_verification_workflow }}
+        run: |
+          set -euo pipefail
+
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW}/runs?event=workflow_dispatch&head_sha=${RELEASE_SHA}&per_page=20" | jq -r --arg branch "${VERSION}" '.workflow_runs[] | select(.head_branch == $branch) | .id' | head -n 1)"
+            [[ -n "${run_id}" ]] && break
+            sleep 2
+          done
+          if [[ -z "${run_id}" ]]; then
+            echo "ERROR: tagged verification ${WORKFLOW} did not start" >&2
+            exit 1
+          fi
+
+          for _ in $(seq 1 60); do
+            status="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.status')"
+            if [[ "${status}" == "completed" ]]; then
+              conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.conclusion')"
+              if [[ "${conclusion}" != "success" ]]; then
+                echo "ERROR: tagged verification ${run_id} concluded ${conclusion}" >&2
+                exit 1
+              fi
+              echo "Verified tagged workflow ${WORKFLOW} run ${run_id}"
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "ERROR: timed out waiting for tagged verification ${run_id}" >&2
+          exit 1
+
+      - name: Create generic GitHub Release
+        if: ${{ !inputs.dry_run && inputs.create_github_release }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
+          CHANGELOG_FILE: ${{ inputs.changelog_file }}
+        run: |
+          set -euo pipefail
+          tool_version="${VERSION#v}"
+          git show "${RELEASE_SHA}:${CHANGELOG_FILE}" | awk -v version="${tool_version}" '
+            $0 ~ "^## " version "([[:space:]]|$)" { capture=1; next }
+            capture && /^## / { exit }
+            capture { print }
+          ' > /tmp/release-notes.md
+          test -s /tmp/release-notes.md
+          gh release create "${VERSION}" --verify-tag --title "${VERSION}" --notes-file /tmp/release-notes.md
+
+      - name: Remove release request branch
+        if: ${{ always() && !inputs.dry_run && github.event_name == 'push' && startsWith(github.ref_name, 'release-request/') }}
+        shell: bash
+        env:
+          REQUEST_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git push origin --delete "${REQUEST_BRANCH}" || true
