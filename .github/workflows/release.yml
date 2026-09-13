@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Immutable release tag, e.g. v0.1.0
+        description: Immutable release tag, e.g. v0.1.1
         required: true
         type: string
       release_sha:
@@ -17,12 +17,12 @@ on:
 
 permissions:
   contents: write
-  actions: read
+  actions: write
 
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout release workflow ref with full history
@@ -96,6 +96,7 @@ jobs:
 
           require_successful_main_run self-test.yml
           require_successful_main_run pr-preview-cleanup-test.yml
+          require_successful_main_run generated-output-publish-test.yml
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
@@ -112,6 +113,47 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$VERSION" "$RELEASE_SHA" -m "tool.git-project $VERSION"
           git push origin "refs/tags/$VERSION"
+
+      - name: Verify generated-output publication on release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh api -X POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/generated-output-publish-test.yml/dispatches" \
+            -f ref="$VERSION"
+
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/generated-output-publish-test.yml/runs?event=workflow_dispatch&head_sha=${RELEASE_SHA}&per_page=20" | jq -r --arg branch "$VERSION" '.workflow_runs[] | select(.head_branch == $branch) | .id' | head -n 1)"
+            [[ -n "$run_id" ]] && break
+            sleep 2
+          done
+          if [[ -z "$run_id" ]]; then
+            echo "ERROR: tagged generated-output publication test did not start" >&2
+            exit 1
+          fi
+
+          for _ in $(seq 1 60); do
+            status="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.status')"
+            if [[ "$status" == "completed" ]]; then
+              conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.conclusion')"
+              if [[ "$conclusion" != "success" ]]; then
+                echo "ERROR: tagged generated-output publication test ${run_id} concluded ${conclusion}" >&2
+                exit 1
+              fi
+              echo "Verified tagged generated-output publication test run ${run_id}"
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "ERROR: timed out waiting for tagged generated-output publication test ${run_id}" >&2
+          exit 1
 
       - name: Create GitHub Release
         env:
