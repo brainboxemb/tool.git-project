@@ -1,0 +1,18 @@
+name: Test generic release lifecycle
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    # Exercise the same reusable release workflow without creating tags or releases.
+    uses: ./.github/workflows/reusable-release.yml
+    with:
+      release_sha: ${{ github.sha }}
+      dry_run: true
