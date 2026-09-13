@@ -1,0 +1,107 @@
+name: Reusable PR preview cleanup
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: Pull request number whose generated preview branches must be removed
+        required: true
+        type: number
+      preview_suffixes:
+        description: Newline-separated suffixes below dev/pr-<N>/ to remove
+        required: true
+        type: string
+      delete_source_branch:
+        description: Delete the merged same-repository pull request source branch
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository for authenticated branch cleanup
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Configure repository credentials
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global credential.helper store
+          printf 'https://x-access-token:%s@github.com\n' "$GITHUB_TOKEN" > ~/.git-credentials
+
+      - name: Remove requested PR preview branches
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PREVIEW_SUFFIXES: ${{ inputs.preview_suffixes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "ERROR: pr_number must be a positive integer" >&2
+            exit 1
+          fi
+
+          count=0
+          while IFS= read -r suffix || [[ -n "$suffix" ]]; do
+            suffix="$(printf '%s' "$suffix" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            [[ -n "$suffix" ]] || continue
+
+            if [[ ! "$suffix" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+              echo "ERROR: invalid preview suffix: $suffix" >&2
+              exit 1
+            fi
+
+            branch="dev/pr-${PR_NUMBER}/${suffix}"
+            case "$branch" in
+              dev/pr-[1-9][0-9]*/[A-Za-z0-9]*) ;;
+              *)
+                echo "ERROR: refusing unsafe preview branch target: $branch" >&2
+                exit 1
+                ;;
+            esac
+
+            if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
+              git push origin --delete "$branch"
+              echo "Removed PR preview branch: $branch"
+            else
+              echo "Preview branch already absent: $branch"
+            fi
+            count=$((count + 1))
+          done <<< "$PREVIEW_SUFFIXES"
+
+          if [[ "$count" -eq 0 ]]; then
+            echo "ERROR: preview_suffixes did not contain any suffix" >&2
+            exit 1
+          fi
+
+      - name: Delete merged source branch
+        if: >-
+          inputs.delete_source_branch &&
+          github.event_name == 'pull_request' &&
+          github.event.action == 'closed' &&
+          github.event.pull_request.merged == true &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.head.ref != github.event.pull_request.base.ref
+        env:
+          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "refs/heads/${SOURCE_BRANCH}" >/dev/null 2>&1; then
+            git push origin --delete "$SOURCE_BRANCH"
+            echo "Removed merged source branch: $SOURCE_BRANCH"
+          else
+            echo "Source branch already absent: $SOURCE_BRANCH"
+          fi
