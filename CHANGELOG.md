@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.1.2 — 2026-09-13
+
+### Added
+
+- Generic reusable repository release lifecycle for:
+  - release-request branch parsing;
+  - exact main-SHA/version/CHANGELOG validation;
+  - optional successful-main-workflow gates;
+  - annotated tag creation;
+  - optional tagged verification dispatch/wait;
+  - optional generic GitHub Release creation;
+  - release-request branch cleanup.
+- Side-effect-free dry-run workflow coverage so the reusable release contract is exercised on pull requests and `main` without creating tags or releases.
+
+### Changed
+
+- `tool.git-project` now uses the same reusable release lifecycle for its own releases instead of maintaining a separate release implementation.
+- Domain tools can keep only their domain-specific tagged verification, provenance and release assets while delegating generic repository release mechanics here.
+
 ## 0.1.1 — 2026-09-13
 
 ### Added
