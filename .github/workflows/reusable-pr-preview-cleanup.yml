@@ -64,13 +64,10 @@ jobs:
             fi
 
             branch="dev/pr-${PR_NUMBER}/${suffix}"
-            case "$branch" in
-              dev/pr-[1-9][0-9]*/[A-Za-z0-9]*) ;;
-              *)
-                echo "ERROR: refusing unsafe preview branch target: $branch" >&2
-                exit 1
-                ;;
-            esac
+            if [[ ! "$branch" =~ ^dev/pr-[1-9][0-9]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+              echo "ERROR: refusing unsafe preview branch target: $branch" >&2
+              exit 1
+            fi
 
             if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
               git push origin --delete "$branch"
