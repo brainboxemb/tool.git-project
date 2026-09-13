@@ -189,7 +189,9 @@ ensure_registration() {
     [[ "$current_url" == "$url" ]] || git -C "$repo_root" config -f .gitmodules "submodule.$name.url" "$url"
   fi
   git -C "$repo_root" submodule sync -- "$path" >/dev/null
-  git -C "$repo_root" submodule update --init -- "$path" >/dev/null
+  if [[ ! -d "$full" ]] || ! git -C "$full" rev-parse --git-dir >/dev/null 2>&1; then
+    git -C "$repo_root" submodule update --init -- "$path" >/dev/null
+  fi
 }
 
 assert_clean() {

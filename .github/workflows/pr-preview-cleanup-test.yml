@@ -1,0 +1,84 @@
+name: Test PR preview cleanup
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      preview_suffix: ${{ steps.refs.outputs.preview_suffix }}
+      protected_branch: ${{ steps.refs.outputs.protected_branch }}
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Create disposable preview and protected control refs
+        id: refs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_suffix="cleanup-self-test-${GITHUB_RUN_ID}"
+          preview_branch="dev/pr-999999/${preview_suffix}"
+          protected_branch="prod/cleanup-self-test-${GITHUB_RUN_ID}"
+
+          git config --global credential.helper store
+          printf 'https://x-access-token:%s@github.com\n' "$GITHUB_TOKEN" > ~/.git-credentials
+          git push origin "HEAD:refs/heads/${preview_branch}"
+          git push origin "HEAD:refs/heads/${protected_branch}"
+
+          echo "preview_suffix=${preview_suffix}" >> "$GITHUB_OUTPUT"
+          echo "protected_branch=${protected_branch}" >> "$GITHUB_OUTPUT"
+
+  cleanup:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/reusable-pr-preview-cleanup.yml
+    with:
+      pr_number: 999999
+      preview_suffixes: ${{ needs.prepare.outputs.preview_suffix }}
+      delete_source_branch: false
+
+  verify:
+    needs: [prepare, cleanup]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Verify only requested preview ref was removed
+        env:
+          PREVIEW_SUFFIX: ${{ needs.prepare.outputs.preview_suffix }}
+          PROTECTED_BRANCH: ${{ needs.prepare.outputs.protected_branch }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_branch="dev/pr-999999/${PREVIEW_SUFFIX}"
+
+          if git ls-remote --exit-code --heads origin "refs/heads/${preview_branch}" >/dev/null 2>&1; then
+            echo "ERROR: preview branch still exists: ${preview_branch}" >&2
+            exit 1
+          fi
+          if ! git ls-remote --exit-code --heads origin "refs/heads/${PROTECTED_BRANCH}" >/dev/null 2>&1; then
+            echo "ERROR: protected control branch was unexpectedly removed: ${PROTECTED_BRANCH}" >&2
+            exit 1
+          fi
+
+          git config --global credential.helper store
+          printf 'https://x-access-token:%s@github.com\n' "$GITHUB_TOKEN" > ~/.git-credentials
+          git push origin --delete "$PROTECTED_BRANCH"
+          echo "Cleanup safety boundary verified."
