@@ -31,34 +31,40 @@ cd "$ROOT"
 # The separate Self-test Git project tooling workflow proves the existing Git-only
 # core on this same PR head. This regression intentionally starts at the optional
 # Moon boundary instead of duplicating the consumer-bootstrap fixture here.
+echo 'Moon regression: bootstrap pinned runtime'
 start_ms="$(now_ms)"
 moon_bin="$(MOON_INSTALL_ROOT="$INSTALL_ROOT" bash ./moon-project.sh bootstrap)"
 end_ms="$(now_ms)"
 bootstrap_ms=$((end_ms - start_ms))
 export MOON_BIN="$moon_bin"
 
-bash ./moon-project.sh validate --repo . --install-root "$INSTALL_ROOT" >/dev/null
+echo 'Moon regression: validate repository and cache paths'
+bash ./moon-project.sh validate --repo . --install-root "$INSTALL_ROOT"
 mapfile -t cache_paths < <(bash ./moon-project.sh cache-paths --repo .)
 [[ "${cache_paths[0]}" == "$ROOT/.moon/cache/hashes" ]]
 [[ "${cache_paths[1]}" == "$ROOT/.moon/cache/outputs" ]]
 
 rm -rf fixture/moon/out fixture/moon/.executions .moon/cache .moon/invocations
 
-bash ./moon-project.sh run fixture:cache.fixture --repo . --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/cold >/dev/null
+echo 'Moon regression: cold execution'
+bash ./moon-project.sh run fixture:cache.fixture --repo . --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/cold
 [[ "$(count_executions "$ROOT")" == "1" ]]
 [[ -f fixture/moon/out/artifact.txt ]]
 [[ -f fixture/moon/out/evidence/execution.log ]]
 [[ -f .moon/invocations/cold/materialization.json ]]
 
-bash ./moon-project.sh run fixture:cache.fixture --repo . --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/exact >/dev/null
+echo 'Moon regression: exact rerun'
+bash ./moon-project.sh run fixture:cache.fixture --repo . --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/exact
 [[ "$(count_executions "$ROOT")" == "1" ]]
 
+echo 'Moon regression: local hydration'
 rm -rf fixture/moon/out
-bash ./moon-project.sh run fixture:cache.fixture --repo . --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/local-hydration >/dev/null
+bash ./moon-project.sh run fixture:cache.fixture --repo . --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/local-hydration
 [[ "$(count_executions "$ROOT")" == "1" ]]
 [[ -f fixture/moon/out/artifact.txt ]]
 [[ -f fixture/moon/out/evidence/execution.log ]]
 
+echo 'Moon regression: fresh-worktree hydration'
 FRESH_PARENT="$(mktemp -d)"
 FRESH="$FRESH_PARENT/worktree"
 git -C "$ROOT" worktree add --detach "$FRESH" HEAD >/dev/null
@@ -66,17 +72,19 @@ mkdir -p "$FRESH/.moon/cache"
 cp -R "$ROOT/.moon/cache/hashes" "$FRESH/.moon/cache/hashes"
 cp -R "$ROOT/.moon/cache/outputs" "$FRESH/.moon/cache/outputs"
 
-bash "$ROOT/moon-project.sh" run fixture:cache.fixture --repo "$FRESH" --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/fresh-hydration >/dev/null
+bash "$ROOT/moon-project.sh" run fixture:cache.fixture --repo "$FRESH" --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/fresh-hydration
 [[ "$(count_executions "$FRESH")" == "0" ]]
 [[ -f "$FRESH/fixture/moon/out/artifact.txt" ]]
 [[ -f "$FRESH/fixture/moon/out/evidence/execution.log" ]]
 
+echo 'Moon regression: unrelated change remains cached'
 printf '\nunrelated change\n' >> "$FRESH/README.md"
-bash "$ROOT/moon-project.sh" run fixture:cache.fixture --repo "$FRESH" --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/unrelated >/dev/null
+bash "$ROOT/moon-project.sh" run fixture:cache.fixture --repo "$FRESH" --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/unrelated
 [[ "$(count_executions "$FRESH")" == "0" ]]
 
+echo 'Moon regression: relevant change executes producer'
 printf '\nrelevant change\n' >> "$FRESH/fixture/moon/input.txt"
-bash "$ROOT/moon-project.sh" run fixture:cache.fixture --repo "$FRESH" --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/relevant >/dev/null
+bash "$ROOT/moon-project.sh" run fixture:cache.fixture --repo "$FRESH" --install-root "$INSTALL_ROOT" --evidence-dir .moon/invocations/relevant
 [[ "$(count_executions "$FRESH")" == "1" ]]
 
 mkdir -p "$RESULTS"
