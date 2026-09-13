@@ -11,6 +11,11 @@ on:
         description: Single validated suffix below dev/pr-N, prod, or rel/vX.Y.Z
         required: true
         type: string
+      source_revision:
+        description: Optional exact source revision override. Normally inferred from the triggering PR/head/tag context.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -23,6 +28,9 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    concurrency:
+      group: generated-output-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}-${{ inputs.branch_suffix }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout caller repository
@@ -40,7 +48,10 @@ jobs:
         shell: bash
         env:
           BRANCH_SUFFIX: ${{ inputs.branch_suffix }}
+          SOURCE_REVISION_INPUT: ${{ inputs.source_revision }}
           PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+          PR_EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -56,23 +67,62 @@ jobs:
             exit 1
           fi
 
+          source_revision="$SOURCE_REVISION_INPUT"
+          if [[ -z "$source_revision" ]]; then
+            if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+              source_revision="$PR_EVENT_HEAD_SHA"
+            else
+              source_revision="$GITHUB_SHA"
+            fi
+          fi
+          if [[ ! "$source_revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: source revision must be an exact 40-character commit SHA" >&2
+            exit 1
+          fi
+
+          publication_context=""
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
-              echo "ERROR: missing or invalid pull-request number" >&2
+            if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ || -z "$PR_HEAD_REF" ]]; then
+              echo "ERROR: missing or invalid pull-request context" >&2
               exit 1
             fi
             target_branch="dev/pr-${PR_NUMBER}/${BRANCH_SUFFIX}"
+            publication_context="pull request #${PR_NUMBER}"
           elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             target_branch="prod/${BRANCH_SUFFIX}"
+            publication_context="main"
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
               echo "ERROR: release tag must match vX.Y.Z: $GITHUB_REF_NAME" >&2
               exit 1
             fi
             target_branch="rel/${GITHUB_REF_NAME}/${BRANCH_SUFFIX}"
+            publication_context="release tag ${GITHUB_REF_NAME}"
           else
             echo "ERROR: generated-output publication is only allowed for same-repository pull requests, main, or vX.Y.Z release tags; got $GITHUB_REF" >&2
             exit 1
+          fi
+
+          current_source_revision() {
+            if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+              git ls-remote origin "refs/heads/${PR_HEAD_REF}" | awk 'NR == 1 { print $1 }'
+            elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+              git ls-remote origin 'refs/heads/main' | awk 'NR == 1 { print $1 }'
+            else
+              # Release tags are immutable in this lifecycle. actions/checkout resolves
+              # an annotated or lightweight tag to its commit, so HEAD is authoritative.
+              git rev-parse HEAD
+            fi
+          }
+
+          current_revision="$(current_source_revision)"
+          if [[ ! "$current_revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: could not resolve current source revision for ${publication_context}" >&2
+            exit 1
+          fi
+          if [[ "$source_revision" != "$current_revision" ]]; then
+            echo "Skipping stale generated-output publication for ${publication_context}: run source ${source_revision}, current source ${current_revision}."
+            exit 0
           fi
 
           git config user.name "github-actions[bot]"
@@ -90,6 +140,15 @@ jobs:
             exit 1
           fi
           git commit -m "Publish generated output to ${target_branch}"
+
+          # Re-check immediately before the destructive force-push. This closes the
+          # normal race window when a newer PR/main revision appears during staging.
+          latest_revision="$(current_source_revision)"
+          if [[ "$source_revision" != "$latest_revision" ]]; then
+            echo "Skipping stale generated-output publication for ${publication_context}: source advanced to ${latest_revision} before push."
+            exit 0
+          fi
+
           git push --force origin "HEAD:${target_branch}"
 
-          echo "Published generated output to ${target_branch}"
+          echo "Published generated output from ${source_revision} to ${target_branch}"
