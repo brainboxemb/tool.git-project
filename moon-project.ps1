@@ -146,6 +146,15 @@ switch ($Command) {
     'validate' {
         $repository = Resolve-Repo $Repo
         Assert-MoonRepository $repository $InstallRoot
+        $moon = Resolve-Moon $InstallRoot
+        Push-Location $repository
+        try {
+            & $moon query projects *> $null
+            if ($LASTEXITCODE -ne 0) { Fail "Moon rejected repository configuration in $repository" }
+        }
+        finally {
+            Pop-Location
+        }
         Write-Output "OK moon repository: version=$MoonVersion repo=$repository"
         exit 0
     }
