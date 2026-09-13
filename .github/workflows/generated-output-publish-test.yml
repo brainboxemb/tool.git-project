@@ -22,7 +22,7 @@ jobs:
           printf '%s\n' "$GITHUB_SHA" > publication/source-sha.txt
           printf 'generated-output publication test\n' > publication/README.md
       - name: Upload fixture output
-        uses: actions/upload-artifact@b7c4e32e08f08cf1a6b5d65cc1f3398f7364f0c2 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: generated-output-publication-test
           path: publication/
