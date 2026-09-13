@@ -30,13 +30,17 @@ jobs:
     timeout-minutes: 5
     concurrency:
       group: generated-output-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}-${{ inputs.branch_suffix }}
-      cancel-in-progress: true
+      # Serialize writes to the same generated-output family. Do not cancel the
+      # currently running job: an older workflow can reach this group later than a
+      # newer workflow, and must not cancel the newer publication.
+      cancel-in-progress: false
 
     steps:
       - name: Checkout caller repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Download prepared output
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -109,9 +113,10 @@ jobs:
             elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
               git ls-remote origin 'refs/heads/main' | awk 'NR == 1 { print $1 }'
             else
-              # Release tags are immutable in this lifecycle. actions/checkout resolves
-              # an annotated or lightweight tag to its commit, so HEAD is authoritative.
-              git rev-parse HEAD
+              # Release tags are immutable in this lifecycle. Resolve the tag ref
+              # explicitly so the check remains stable after switching to an orphan
+              # generated-output branch later in this job.
+              git rev-parse "refs/tags/${GITHUB_REF_NAME}^{commit}"
             fi
           }
 
