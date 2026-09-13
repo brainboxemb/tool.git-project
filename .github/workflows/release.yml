@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Immutable release tag, e.g. v0.1.1
+        description: 'Immutable release tag, e.g. v0.1.2'
         required: true
         type: string
       release_sha:
-        description: Exact already-verified main commit SHA to tag
+        description: 'Exact already-verified main commit SHA to tag'
         required: true
         type: string
   push:
@@ -21,161 +21,17 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout release workflow ref with full history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Resolve and validate release request
-        id: release
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_VERSION: ${{ inputs.version }}
-          INPUT_RELEASE_SHA: ${{ inputs.release_sha }}
-          REF_NAME: ${{ github.ref_name }}
-          GITHUB_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            request="${REF_NAME#release-request/}"
-            IFS='/' read -r version release_sha extra <<< "$request"
-            if [[ "$request" == "$REF_NAME" || -z "$version" || -z "$release_sha" || -n "${extra:-}" ]]; then
-              echo "ERROR: release request branch must be release-request/vX.Y.Z/<40-char-sha>" >&2
-              exit 1
-            fi
-          else
-            version="$INPUT_VERSION"
-            release_sha="$INPUT_RELEASE_SHA"
-          fi
-
-          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "ERROR: version must match vX.Y.Z" >&2
-            exit 1
-          fi
-          if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "ERROR: release_sha must be an exact 40-character commit SHA" >&2
-            exit 1
-          fi
-
-          git fetch --force --tags origin main
-          main_sha="$(git rev-parse origin/main)"
-          if [[ "$release_sha" != "$main_sha" ]]; then
-            echo "ERROR: release_sha $release_sha is not current main $main_sha" >&2
-            exit 1
-          fi
-
-          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
-            echo "ERROR: release tag already exists: $version" >&2
-            exit 1
-          fi
-
-          tool_version="$(git show "$release_sha:VERSION" | tr -d '\r\n')"
-          if [[ "$version" != "v${tool_version}" ]]; then
-            echo "ERROR: requested $version but VERSION declares v${tool_version}" >&2
-            exit 1
-          fi
-          git show "$release_sha:CHANGELOG.md" | grep -F "## ${tool_version} —"
-
-          require_successful_main_run() {
-            local workflow="$1"
-            local run_id
-            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?head_sha=${release_sha}&branch=main&event=push&status=completed" --jq '.workflow_runs[] | select(.conclusion == "success") | .id' | head -n 1)"
-            if [[ -z "$run_id" ]]; then
-              echo "ERROR: no successful main run for ${workflow} at ${release_sha}" >&2
-              exit 1
-            fi
-            echo "Verified ${workflow} run ${run_id}"
-          }
-
-          require_successful_main_run self-test.yml
-          require_successful_main_run pr-preview-cleanup-test.yml
-          require_successful_main_run generated-output-publish-test.yml
-
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
-          echo "Validated $version at $release_sha"
-
-      - name: Create annotated release tag
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$VERSION" "$RELEASE_SHA" -m "tool.git-project $VERSION"
-          git push origin "refs/tags/$VERSION"
-
-      - name: Verify generated-output publication on release tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          gh api -X POST \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/generated-output-publish-test.yml/dispatches" \
-            -f ref="$VERSION"
-
-          run_id=""
-          for _ in $(seq 1 30); do
-            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/generated-output-publish-test.yml/runs?event=workflow_dispatch&head_sha=${RELEASE_SHA}&per_page=20" | jq -r --arg branch "$VERSION" '.workflow_runs[] | select(.head_branch == $branch) | .id' | head -n 1)"
-            [[ -n "$run_id" ]] && break
-            sleep 2
-          done
-          if [[ -z "$run_id" ]]; then
-            echo "ERROR: tagged generated-output publication test did not start" >&2
-            exit 1
-          fi
-
-          for _ in $(seq 1 60); do
-            status="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.status')"
-            if [[ "$status" == "completed" ]]; then
-              conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.conclusion')"
-              if [[ "$conclusion" != "success" ]]; then
-                echo "ERROR: tagged generated-output publication test ${run_id} concluded ${conclusion}" >&2
-                exit 1
-              fi
-              echo "Verified tagged generated-output publication test run ${run_id}"
-              exit 0
-            fi
-            sleep 5
-          done
-
-          echo "ERROR: timed out waiting for tagged generated-output publication test ${run_id}" >&2
-          exit 1
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tool_version="${VERSION#v}"
-          git show "$RELEASE_SHA:CHANGELOG.md" | awk -v heading="## ${tool_version} —" '
-            $0 ~ "^" heading {in_section=1; next}
-            in_section && /^## / {exit}
-            in_section {print}
-          ' > /tmp/release-notes.md
-          gh release create "$VERSION" --verify-tag --title "$VERSION" --notes-file /tmp/release-notes.md
-
-      - name: Remove release request branch
-        if: ${{ always() && github.event_name == 'push' }}
-        env:
-          REQUEST_BRANCH: ${{ github.ref_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git push origin --delete "$REQUEST_BRANCH" || true
+    # tool.git-project uses its own generic release lifecycle locally. External
+    # repositories consume the same workflow through a released tool tag.
+    uses: ./.github/workflows/reusable-release.yml
+    with:
+      version: ${{ inputs.version || '' }}
+      release_sha: ${{ inputs.release_sha || '' }}
+      required_main_workflows: |
+        self-test.yml
+        pr-preview-cleanup-test.yml
+        generated-output-publish-test.yml
+        reusable-release-test.yml
+      tagged_verification_workflow: generated-output-publish-test.yml
+      wait_for_tagged_verification: true
+      create_github_release: true
