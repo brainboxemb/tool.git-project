@@ -245,7 +245,15 @@ function Ensure-Registration {
     }
 
     Invoke-Git -WorkingDirectory $Root -Args @("submodule", "sync", "--", $Path) | Out-Null
-    Invoke-Git -WorkingDirectory $Root -Args @("submodule", "update", "--init", "--", $Path) | Out-Null
+
+    $Initialized = $false
+    if (Test-Path $FullPath) {
+        $GitDir = Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "--git-dir") -Capture -AllowFailure
+        $Initialized = ($GitDir.Code -eq 0)
+    }
+    if (-not $Initialized) {
+        Invoke-Git -WorkingDirectory $Root -Args @("submodule", "update", "--init", "--", $Path) | Out-Null
+    }
 }
 
 function Assert-CleanDependency {
