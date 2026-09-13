@@ -1,0 +1,131 @@
+name: Release tool.git-project
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Immutable release tag, e.g. v0.1.0
+        required: true
+        type: string
+      release_sha:
+        description: Exact already-verified main commit SHA to tag
+        required: true
+        type: string
+  push:
+    branches:
+      - 'release-request/**'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout release workflow ref with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve and validate release request
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_RELEASE_SHA: ${{ inputs.release_sha }}
+          REF_NAME: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            request="${REF_NAME#release-request/}"
+            IFS='/' read -r version release_sha extra <<< "$request"
+            if [[ "$request" == "$REF_NAME" || -z "$version" || -z "$release_sha" || -n "${extra:-}" ]]; then
+              echo "ERROR: release request branch must be release-request/vX.Y.Z/<40-char-sha>" >&2
+              exit 1
+            fi
+          else
+            version="$INPUT_VERSION"
+            release_sha="$INPUT_RELEASE_SHA"
+          fi
+
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: version must match vX.Y.Z" >&2
+            exit 1
+          fi
+          if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: release_sha must be an exact 40-character commit SHA" >&2
+            exit 1
+          fi
+
+          git fetch --force --tags origin main
+          main_sha="$(git rev-parse origin/main)"
+          if [[ "$release_sha" != "$main_sha" ]]; then
+            echo "ERROR: release_sha $release_sha is not current main $main_sha" >&2
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            echo "ERROR: release tag already exists: $version" >&2
+            exit 1
+          fi
+
+          tool_version="$(git show "$release_sha:VERSION" | tr -d '\r\n')"
+          if [[ "$version" != "v${tool_version}" ]]; then
+            echo "ERROR: requested $version but VERSION declares v${tool_version}" >&2
+            exit 1
+          fi
+          git show "$release_sha:CHANGELOG.md" | grep -F "## ${tool_version} —"
+
+          successful_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/self-test.yml/runs?head_sha=${release_sha}&branch=main&event=push&status=completed" --jq '.workflow_runs[] | select(.conclusion == "success") | .id' | head -n 1)"
+          if [[ -z "$successful_run" ]]; then
+            echo "ERROR: no successful main self-test found for $release_sha" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+          echo "Validated $version at $release_sha using self-test run $successful_run"
+
+      - name: Create annotated release tag
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" "$RELEASE_SHA" -m "tool.git-project $VERSION"
+          git push origin "refs/tags/$VERSION"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_version="${VERSION#v}"
+          git show "$RELEASE_SHA:CHANGELOG.md" | awk -v heading="## ${tool_version} —" '
+            $0 ~ "^" heading {in_section=1; next}
+            in_section && /^## / {exit}
+            in_section {print}
+          ' > /tmp/release-notes.md
+          gh release create "$VERSION" --verify-tag --title "$VERSION" --notes-file /tmp/release-notes.md
+
+      - name: Remove release request branch
+        if: ${{ always() && github.event_name == 'push' }}
+        env:
+          REQUEST_BRANCH: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin --delete "$REQUEST_BRANCH" || true
