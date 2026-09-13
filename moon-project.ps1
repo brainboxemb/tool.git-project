@@ -94,7 +94,7 @@ function Install-PinnedMoon([string]$Root) {
 function Resolve-Moon([string]$Root) {
     if ($env:MOON_BIN) {
         if (-not (Test-MoonVersion $env:MOON_BIN)) {
-            Fail "MOON_BIN does not point to Moon $MoonVersion: $($env:MOON_BIN)"
+            Fail "MOON_BIN does not point to Moon ${MoonVersion}: $($env:MOON_BIN)"
         }
         return $env:MOON_BIN
     }
