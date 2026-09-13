@@ -35,9 +35,11 @@ The Git tool validates that configured profile files exist, but treats their con
 
 ## Tool release baseline
 
-`VERSION` is the source-controlled release version of `tool.git-project`. Reusable GitHub workflows are released together with the normal Git tooling and are consumed through an immutable release tag such as `v0.1.1`, never through moving `main`.
+`VERSION` is the source-controlled release version of `tool.git-project`. Reusable GitHub workflows are released together with the normal Git tooling and are consumed through an immutable release tag, never through moving `main`.
 
 For maximum reproducibility a consumer may additionally record or pin the exact commit behind the release tag in its committed gitlink/provenance. A normal release is created only from the exact current `main` commit after the required self-tests are green.
+
+Generic release-request, tag and optional release orchestration is documented in [`docs/release-lifecycle.md`](docs/release-lifecycle.md).
 
 ## Bootstrap dependency
 
@@ -193,4 +195,4 @@ The bootstrap engine itself is always pinned by its parent gitlink. Reusable Git
 
 `fixture/` is intentionally build-system-neutral. CI creates a temporary Git consumer repository, pins the current `tool.git-project` revision as its bootstrap gitlink, removes the initialized worktree to emulate a fresh clone, and then proves root-level bootstrap plus managed dependency validation, status and idempotent update on both Linux and Windows.
 
-Separate lifecycle tests exercise PR-preview cleanup and generated-output publication. The publication test runs in PR, `main`, and release-tag contexts, verifies the generated branch content, and removes its disposable test branch after validation.
+Separate lifecycle tests exercise PR-preview cleanup, generated-output publication, and the reusable release contract. The release test runs the generic workflow in side-effect-free dry-run mode; the publication test runs in PR, `main`, and release-tag contexts, verifies the generated branch content, and removes its disposable test branch after validation.
