@@ -150,6 +150,16 @@ test_gitlink() {
   [[ "$entry" =~ ^160000[[:space:]] ]]
 }
 
+dependency_repo_initialized() {
+  local full="$1" top full_real top_real
+  [[ -d "$full" ]] || return 1
+  top="$(git -C "$full" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$top" ]] || return 1
+  full_real="$(cd "$full" && pwd -P)"
+  top_real="$(cd "$top" && pwd -P)"
+  [[ "$full_real" == "$top_real" ]]
+}
+
 submodule_name_for_path() {
   local path="$1" line key value
   [[ -f "$repo_root/.gitmodules" ]] || return 1
@@ -189,7 +199,7 @@ ensure_registration() {
     [[ "$current_url" == "$url" ]] || git -C "$repo_root" config -f .gitmodules "submodule.$name.url" "$url"
   fi
   git -C "$repo_root" submodule sync -- "$path" >/dev/null
-  if [[ ! -d "$full" ]] || ! git -C "$full" rev-parse --git-dir >/dev/null 2>&1; then
+  if ! dependency_repo_initialized "$full"; then
     git -C "$repo_root" submodule update --init -- "$path" >/dev/null
   fi
 }
@@ -231,14 +241,11 @@ show_status() {
   local i full current expected dirty state
   for i in "${!dep_names[@]}"; do
     full="$repo_root/${dep_paths[$i]}"
-    if ! test_gitlink "${dep_paths[$i]}" || [[ ! -d "$full" ]]; then
-      printf '%-28s MISSING  ref=%s path=%s\n' "${dep_names[$i]}" "${dep_refs[$i]}" "${dep_paths[$i]}"
-      continue
-    fi
-    if ! current="$(git -C "$full" rev-parse HEAD 2>/dev/null)"; then
+    if ! test_gitlink "${dep_paths[$i]}" || ! dependency_repo_initialized "$full"; then
       printf '%-28s UNINITIALIZED ref=%s path=%s\n' "${dep_names[$i]}" "${dep_refs[$i]}" "${dep_paths[$i]}"
       continue
     fi
+    current="$(git -C "$full" rev-parse HEAD)"
     expected="$(resolve_commit "$full" "${dep_refs[$i]}" no || true)"
     dirty="$(git -C "$full" status --porcelain)"
     if [[ -n "$dirty" ]]; then state="DIRTY"
