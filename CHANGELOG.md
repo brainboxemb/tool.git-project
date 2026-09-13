@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.2.2 — 2026-09-13
+
+### Fixed
+
+- Accept valid single-digit pull-request numbers in generic `dev/pr-<N>/<suffix>` preview cleanup safety validation.
+- Replace the ambiguous shell glob guard with an explicit branch regex after the PR number and suffix have been independently validated.
+- Add owner cleanup regression coverage using PR `4` so single-digit preview deletion and protected-branch safety are both exercised.
+
 ## 0.2.1 — 2026-09-13
 
 ### Fixed
