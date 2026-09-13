@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.1.3 — 2026-09-13
+
+### Fixed
+
+- Prevent older pull-request or `main` workflow runs from force-pushing stale generated output over a newer `dev/pr-N/<suffix>` or `prod/<suffix>` publication.
+- Re-check the current source revision immediately before publication and again immediately before the generated-branch force-push; stale runs now finish successfully without publishing.
+
+### Changed
+
+- Serialize generated-output publication per repository, source context, and output suffix with an Actions concurrency group.
+- Extend generated-output self-test coverage with an explicit stale-publication case that proves stale output is not materialized.
+
 ## 0.1.2 — 2026-09-13
 
 ### Added
