@@ -44,7 +44,7 @@ on:
         type: boolean
         default: false
       create_github_release:
-        description: Create a generic GitHub Release from the matching CHANGELOG section after tagged verification.
+        description: Create a generic GitHub Release from the matching CHANGELOG section after required tagged verification.
         required: false
         type: boolean
         default: false
@@ -90,6 +90,9 @@ jobs:
           VERSION_FILE: ${{ inputs.version_file }}
           CHANGELOG_FILE: ${{ inputs.changelog_file }}
           REQUIRED_MAIN_WORKFLOWS: ${{ inputs.required_main_workflows }}
+          TAGGED_VERIFICATION_WORKFLOW: ${{ inputs.tagged_verification_workflow }}
+          WAIT_FOR_TAGGED_VERIFICATION: ${{ inputs.wait_for_tagged_verification }}
+          CREATE_GITHUB_RELEASE: ${{ inputs.create_github_release }}
           DRY_RUN: ${{ inputs.dry_run }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -144,10 +147,15 @@ jobs:
             exit 1
           fi
 
-          git show "${release_sha}:${CHANGELOG_FILE}" | grep -E "^## ${tool_version}( |$)" >/dev/null
+          git show "${release_sha}:${CHANGELOG_FILE}" | grep -F "## ${tool_version} " >/dev/null
 
           if [[ "${DRY_RUN}" != "true" ]] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
             echo "ERROR: release tag already exists: ${version}" >&2
+            exit 1
+          fi
+
+          if [[ "${CREATE_GITHUB_RELEASE}" == "true" && -n "${TAGGED_VERIFICATION_WORKFLOW}" && "${WAIT_FOR_TAGGED_VERIFICATION}" != "true" ]]; then
+            echo "ERROR: create_github_release with tagged_verification_workflow requires wait_for_tagged_verification=true" >&2
             exit 1
           fi
 
