@@ -14,7 +14,8 @@ now_ms() {
 }
 
 count_executions() {
-  local repo="$1" file="$repo/fixture/moon/.executions/count.txt"
+  local repo="$1"
+  local file="$repo/fixture/moon/.executions/count.txt"
   if [[ -f "$file" ]]; then tr -d '\r\n' < "$file"; else printf '0\n'; fi
 }
 
