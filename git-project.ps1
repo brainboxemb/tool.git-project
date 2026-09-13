@@ -195,6 +195,22 @@ function Test-Gitlink {
     return ($Result.Code -eq 0 -and (($Result.Output -join "`n") -match '^160000\s'))
 }
 
+function Test-DependencyRepoInitialized {
+    param([string] $FullPath)
+
+    if (-not (Test-Path $FullPath -PathType Container)) { return $false }
+    $Top = Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "--show-toplevel") -Capture -AllowFailure
+    if ($Top.Code -ne 0) { return $false }
+
+    $ResolvedTop = ($Top.Output | Select-Object -First 1).Trim()
+    if (-not $ResolvedTop) { return $false }
+
+    $TrimChars = [char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $Expected = [System.IO.Path]::GetFullPath($FullPath).TrimEnd($TrimChars)
+    $Actual = [System.IO.Path]::GetFullPath($ResolvedTop).TrimEnd($TrimChars)
+    return ($Expected -eq $Actual)
+}
+
 function Get-SubmoduleName {
     param([string] $Root, [string] $Path)
     $Modules = Join-Path $Root ".gitmodules"
@@ -246,12 +262,7 @@ function Ensure-Registration {
 
     Invoke-Git -WorkingDirectory $Root -Args @("submodule", "sync", "--", $Path) | Out-Null
 
-    $Initialized = $false
-    if (Test-Path $FullPath) {
-        $GitDir = Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "--git-dir") -Capture -AllowFailure
-        $Initialized = ($GitDir.Code -eq 0)
-    }
-    if (-not $Initialized) {
+    if (-not (Test-DependencyRepoInitialized -FullPath $FullPath)) {
         Invoke-Git -WorkingDirectory $Root -Args @("submodule", "update", "--init", "--", $Path) | Out-Null
     }
 }
@@ -308,18 +319,12 @@ function Show-Status {
     foreach ($Dependency in $Model.Dependencies) {
         $FullPath = Join-Path $Root $Dependency.Path
         $Gitlink = Test-Gitlink -Root $Root -Path $Dependency.Path
-        if (-not $Gitlink -or -not (Test-Path $FullPath)) {
-            Write-Host ("{0,-28} MISSING  ref={1} path={2}" -f $Dependency.Name, $Dependency.Ref, $Dependency.Path)
-            continue
-        }
-
-        $CurrentResult = Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "HEAD") -Capture -AllowFailure
-        if ($CurrentResult.Code -ne 0) {
+        if (-not $Gitlink -or -not (Test-DependencyRepoInitialized -FullPath $FullPath)) {
             Write-Host ("{0,-28} UNINITIALIZED ref={1} path={2}" -f $Dependency.Name, $Dependency.Ref, $Dependency.Path)
             continue
         }
 
-        $Current = ($CurrentResult.Output | Select-Object -First 1).Trim()
+        $Current = ((Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "HEAD") -Capture).Output | Select-Object -First 1).Trim()
         $Expected = Resolve-DependencyCommit -FullPath $FullPath -Ref $Dependency.Ref
         $Dirty = (Invoke-Git -WorkingDirectory $FullPath -Args @("status", "--porcelain") -Capture).Output
         $State = if ($Dirty) { "DIRTY" } elseif ($Expected -and $Expected -eq $Current) { "OK" } elseif ($Expected) { "DIFF" } else { "UNKNOWN" }
