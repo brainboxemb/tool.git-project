@@ -1,0 +1,81 @@
+name: Test generated output publication
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Prepare fixture output
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p publication
+          printf '%s\n' "$GITHUB_SHA" > publication/source-sha.txt
+          printf 'generated-output publication test\n' > publication/README.md
+      - name: Upload fixture output
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: generated-output-publication-test
+          path: publication/
+          if-no-files-found: error
+
+  publish:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/reusable-generated-output-publish.yml
+    with:
+      artifact_name: generated-output-publication-test
+      branch_suffix: publication-test
+
+  verify-and-clean:
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Verify target mapping and published content
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            target_branch="dev/pr-${PR_NUMBER}/publication-test"
+          elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            target_branch="prod/publication-test"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            target_branch="rel/${GITHUB_REF_NAME}/publication-test"
+          else
+            echo "ERROR: unexpected test context: $GITHUB_REF" >&2
+            exit 1
+          fi
+
+          git config --global credential.helper store
+          printf 'https://x-access-token:%s@github.com\n' "$GITHUB_TOKEN" > ~/.git-credentials
+
+          cleanup() {
+            git push origin --delete "$target_branch" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          git fetch origin "refs/heads/${target_branch}:refs/remotes/origin/${target_branch}"
+          test "$(git show "refs/remotes/origin/${target_branch}:source-sha.txt" | tr -d '\r\n')" = "$GITHUB_SHA"
+          git show "refs/remotes/origin/${target_branch}:README.md" | grep -F 'generated-output publication test'
+          echo "Verified generated-output publication at ${target_branch}"

@@ -1,0 +1,95 @@
+name: Reusable generated output publication
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        description: Actions artifact containing the prepared generated-output tree
+        required: true
+        type: string
+      branch_suffix:
+        description: Single validated suffix below dev/pr-N, prod, or rel/vX.Y.Z
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish generated output
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Download prepared output
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ runner.temp }}/generated-output-publication
+
+      - name: Publish generated branch
+        shell: bash
+        env:
+          BRANCH_SUFFIX: ${{ inputs.branch_suffix }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          publish_dir="${RUNNER_TEMP}/generated-output-publication"
+          if [[ ! -d "$publish_dir" ]] || ! find "$publish_dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+            echo "ERROR: prepared generated-output artifact is empty" >&2
+            exit 1
+          fi
+
+          if [[ ! "$BRANCH_SUFFIX" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "ERROR: invalid generated-output branch suffix: $BRANCH_SUFFIX" >&2
+            exit 1
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo "ERROR: missing or invalid pull-request number" >&2
+              exit 1
+            fi
+            target_branch="dev/pr-${PR_NUMBER}/${BRANCH_SUFFIX}"
+          elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            target_branch="prod/${BRANCH_SUFFIX}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "ERROR: release tag must match vX.Y.Z: $GITHUB_REF_NAME" >&2
+              exit 1
+            fi
+            target_branch="rel/${GITHUB_REF_NAME}/${BRANCH_SUFFIX}"
+          else
+            echo "ERROR: generated-output publication is only allowed for same-repository pull requests, main, or vX.Y.Z release tags; got $GITHUB_REF" >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global credential.helper store
+          printf 'https://x-access-token:%s@github.com\n' "$GITHUB_TOKEN" > ~/.git-credentials
+
+          git switch --orphan generated-output-publication
+          git clean -fdx
+          cp -a "$publish_dir/." ./
+
+          git add .
+          if git diff --cached --quiet; then
+            echo "ERROR: prepared generated-output artifact produced no publishable files" >&2
+            exit 1
+          fi
+          git commit -m "Publish generated output to ${target_branch}"
+          git push --force origin "HEAD:${target_branch}"
+
+          echo "Published generated output to ${target_branch}"
