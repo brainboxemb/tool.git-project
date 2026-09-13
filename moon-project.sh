@@ -132,7 +132,7 @@ repo_absolute() {
   (cd "$repo" && pwd)
 }
 
-validate_repo() {
+validate_repo_layout() {
   local repo="$1" install_root="$2"
   [[ -f "$repo/.moon/workspace.yml" ]] || fail "Missing Moon workspace configuration: $repo/.moon/workspace.yml"
   [[ -f "$repo/moon.yml" ]] || fail "Missing Moon task configuration: $repo/moon.yml"
@@ -171,7 +171,9 @@ case "$command_name" in
       esac
     done
     repo="$(repo_absolute "$repo")"
-    validate_repo "$repo" "$install_root"
+    validate_repo_layout "$repo" "$install_root"
+    moon_bin="$(resolve_moon "$install_root")"
+    (cd "$repo" && "$moon_bin" query projects >/dev/null) || fail "Moon rejected repository configuration in $repo"
     printf 'OK moon repository: version=%s repo=%s\n' "$MOON_VERSION" "$repo"
     ;;
 
@@ -208,7 +210,7 @@ case "$command_name" in
     done
 
     repo="$(repo_absolute "$repo")"
-    validate_repo "$repo" "$install_root"
+    validate_repo_layout "$repo" "$install_root"
     moon_bin="$(resolve_moon "$install_root")"
     if [[ -z "$evidence_dir" ]]; then
       evidence_dir=".moon/invocations/${task//:/_}"
