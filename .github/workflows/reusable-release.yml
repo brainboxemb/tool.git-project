@@ -163,16 +163,20 @@ jobs:
             done <<< "${REQUIRED_MAIN_WORKFLOWS}"
           fi
 
+          mode=""
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            mode=" (dry-run)"
+          fi
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "release_sha=${release_sha}" >> "${GITHUB_OUTPUT}"
-          echo "Validated ${version} @ ${release_sha}${DRY_RUN:+ (dry-run)}"
+          echo "Validated ${version} @ ${release_sha}${mode}"
 
       - name: Stop after dry-run validation
         if: ${{ inputs.dry_run }}
         run: echo 'Generic release metadata validation completed without side effects.'
 
       - name: Create annotated release tag
-        if: ${{ !inputs.dry_run }}
+        if: ${{ ! inputs.dry_run }}
         shell: bash
         env:
           VERSION: ${{ steps.release.outputs.version }}
@@ -186,7 +190,7 @@ jobs:
           git push origin "refs/tags/${VERSION}"
 
       - name: Dispatch tagged verification
-        if: ${{ !inputs.dry_run && inputs.tagged_verification_workflow != '' }}
+        if: ${{ ! inputs.dry_run && inputs.tagged_verification_workflow != '' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -198,7 +202,7 @@ jobs:
           echo "Dispatched ${WORKFLOW} on ${VERSION}."
 
       - name: Wait for tagged verification
-        if: ${{ !inputs.dry_run && inputs.tagged_verification_workflow != '' && inputs.wait_for_tagged_verification }}
+        if: ${{ ! inputs.dry_run && inputs.tagged_verification_workflow != '' && inputs.wait_for_tagged_verification }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -237,7 +241,7 @@ jobs:
           exit 1
 
       - name: Create generic GitHub Release
-        if: ${{ !inputs.dry_run && inputs.create_github_release }}
+        if: ${{ ! inputs.dry_run && inputs.create_github_release }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -256,7 +260,7 @@ jobs:
           gh release create "${VERSION}" --verify-tag --title "${VERSION}" --notes-file /tmp/release-notes.md
 
       - name: Remove release request branch
-        if: ${{ always() && !inputs.dry_run && github.event_name == 'push' && startsWith(github.ref_name, 'release-request/') }}
+        if: ${{ always() && ! inputs.dry_run && github.event_name == 'push' && startsWith(github.ref_name, 'release-request/') }}
         shell: bash
         env:
           REQUEST_BRANCH: ${{ github.ref_name }}
