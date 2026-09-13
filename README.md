@@ -35,7 +35,7 @@ The Git tool validates that configured profile files exist, but treats their con
 
 ## Tool release baseline
 
-`VERSION` is the source-controlled release version of `tool.git-project`. Reusable GitHub workflows are released together with the normal Git tooling and are consumed through an immutable release tag such as `v0.1.0`, never through moving `main`.
+`VERSION` is the source-controlled release version of `tool.git-project`. Reusable GitHub workflows are released together with the normal Git tooling and are consumed through an immutable release tag such as `v0.1.1`, never through moving `main`.
 
 For maximum reproducibility a consumer may additionally record or pin the exact commit behind the release tag in its committed gitlink/provenance. A normal release is created only from the exact current `main` commit after the required self-tests are green.
 
@@ -96,15 +96,7 @@ POSIX shell:
 ./git-project.sh update
 ```
 
-The commands can also operate on another local repository, which is useful for CI and tooling tests:
-
-```powershell
-.\git-project.ps1 bootstrap -RepoRoot C:\work\consumer
-```
-
-```bash
-./git-project.sh bootstrap --repo /work/consumer
-```
+The commands can also operate on another local repository, which is useful for CI and tooling tests.
 
 ### Command semantics
 
@@ -122,6 +114,22 @@ A consumer has a chicken-and-egg problem: `tool.git-project` must exist before i
 They require the bootstrap tool to be a **committed gitlink**, restore that exact pinned commit with `git submodule update --init`, and then delegate to the generic implementation. They do not follow `main` or invent a bootstrap version when the gitlink is missing.
 
 The substantial dependency logic stays here rather than being copied into every consumer.
+
+## Generated output lifecycle
+
+Generated repository output uses one shared lifecycle independent of Java, SCAD, or documentation semantics:
+
+```text
+pull request #N     -> dev/pr-N/<suffix>
+main                -> prod/<suffix>
+release tag vX.Y.Z  -> rel/vX.Y.Z/<suffix>
+```
+
+The domain producer prepares the complete output tree and chooses the suffix it owns, for example `bld`, `docs`, `build`, or `verification`. `tool.git-project` only owns the Git/repository materialization step.
+
+The reusable workflow `.github/workflows/reusable-generated-output-publish.yml` accepts the prepared Actions artifact and a single validated suffix. It does not run domain build/test engines and it does not rewrite provenance.
+
+See [`docs/generated-output-publication.md`](docs/generated-output-publication.md) for the full contract.
 
 ## PR preview branch cleanup
 
@@ -156,7 +164,7 @@ permissions:
 
 jobs:
   cleanup:
-    uses: brainboxemb/tool.git-project/.github/workflows/reusable-pr-preview-cleanup.yml@v0.1.0
+    uses: brainboxemb/tool.git-project/.github/workflows/reusable-pr-preview-cleanup.yml@v0.1.1
     with:
       pr_number: ${{ github.event.pull_request.number }}
       preview_suffixes: |
@@ -185,4 +193,4 @@ The bootstrap engine itself is always pinned by its parent gitlink. Reusable Git
 
 `fixture/` is intentionally build-system-neutral. CI creates a temporary Git consumer repository, pins the current `tool.git-project` revision as its bootstrap gitlink, removes the initialized worktree to emulate a fresh clone, and then proves root-level bootstrap plus managed dependency validation, status and idempotent update on both Linux and Windows.
 
-A separate PR-preview cleanup test creates a disposable `dev/pr-.../...` ref and a `prod/...` control ref, invokes the reusable cleanup workflow, verifies that only the requested preview ref was deleted, and then removes the control ref.
+Separate lifecycle tests exercise PR-preview cleanup and generated-output publication. The publication test runs in PR, `main`, and release-tag contexts, verifies the generated branch content, and removes its disposable test branch after validation.
