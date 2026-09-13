@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Immutable release tag, e.g. v0.1.2'
+        description: 'Immutable release tag, e.g. v0.2.0'
         required: true
         type: string
       release_sha:
@@ -32,6 +32,7 @@ jobs:
         pr-preview-cleanup-test.yml
         generated-output-publish-test.yml
         reusable-release-test.yml
+        moon-orchestration-test.yml
       tagged_verification_workflow: generated-output-publish-test.yml
       wait_for_tagged_verification: true
       create_github_release: true
