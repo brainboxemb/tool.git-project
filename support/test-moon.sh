@@ -28,9 +28,9 @@ trap cleanup EXIT
 
 cd "$ROOT"
 
-# The existing repository/dependency path must remain completely independent from Moon.
-bash ./git-project.sh validate --repo fixture >/dev/null
-
+# The separate Self-test Git project tooling workflow proves the existing Git-only
+# core on this same PR head. This regression intentionally starts at the optional
+# Moon boundary instead of duplicating the consumer-bootstrap fixture here.
 start_ms="$(now_ms)"
 moon_bin="$(MOON_INSTALL_ROOT="$INSTALL_ROOT" bash ./moon-project.sh bootstrap)"
 end_ms="$(now_ms)"
@@ -86,7 +86,6 @@ cat > "$RESULTS/linux.json" <<EOF
   "moon_version": "2.5.4",
   "bootstrap_ms": $bootstrap_ms,
   "checks": {
-    "git_core_without_moon": true,
     "cold_execution": true,
     "exact_rerun_skips_command": true,
     "local_hydration_skips_command": true,
