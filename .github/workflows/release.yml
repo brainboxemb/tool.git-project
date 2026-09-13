@@ -83,15 +83,23 @@ jobs:
           fi
           git show "$release_sha:CHANGELOG.md" | grep -F "## ${tool_version} —"
 
-          successful_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/self-test.yml/runs?head_sha=${release_sha}&branch=main&event=push&status=completed" --jq '.workflow_runs[] | select(.conclusion == "success") | .id' | head -n 1)"
-          if [[ -z "$successful_run" ]]; then
-            echo "ERROR: no successful main self-test found for $release_sha" >&2
-            exit 1
-          fi
+          require_successful_main_run() {
+            local workflow="$1"
+            local run_id
+            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?head_sha=${release_sha}&branch=main&event=push&status=completed" --jq '.workflow_runs[] | select(.conclusion == "success") | .id' | head -n 1)"
+            if [[ -z "$run_id" ]]; then
+              echo "ERROR: no successful main run for ${workflow} at ${release_sha}" >&2
+              exit 1
+            fi
+            echo "Verified ${workflow} run ${run_id}"
+          }
+
+          require_successful_main_run self-test.yml
+          require_successful_main_run pr-preview-cleanup-test.yml
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
-          echo "Validated $version at $release_sha using self-test run $successful_run"
+          echo "Validated $version at $release_sha"
 
       - name: Create annotated release tag
         env:
