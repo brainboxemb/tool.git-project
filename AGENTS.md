@@ -17,6 +17,8 @@ The Git core may understand generic concepts such as:
 - bootstrap/status/update operations;
 - generic generated-output/release lifecycle operations.
 
+The generic repository layer may also own domain-neutral interface contracts such as the persistent producer-execution evidence schema and its contract fixtures. It must not execute domain actions merely to manufacture that evidence; Java, SCAD, documentation and project-owned producers remain responsible for their own real execution evidence.
+
 The optional Moon integration may own only generic repository-orchestration concerns:
 
 - the approved/pinned Moon runtime;
@@ -38,6 +40,7 @@ Do not add orchestration complexity merely for architectural symmetry. Keep doma
 - Do not make Python, Docker, Java, Maven, OpenSCAD, Moon, or another language/runtime a prerequisite for basic Git bootstrap/update operations.
 - Git is the only intended external runtime prerequisite for the core Git tool.
 - Moon is an explicit opt-in companion capability and must remain separately invokable/cacheable.
+- A schema self-test or development validator may use an explicitly declared CI dependency, but that must not become an undeclared consumer/runtime prerequisite.
 
 ## Safety
 
@@ -60,6 +63,13 @@ When extending the generic Git format, update:
 - `schemas/project.schema.json`;
 - `docs/project-format.md`;
 - fixture/self-tests.
+
+When extending the persistent execution-evidence contract, update:
+
+- `schemas/execution-evidence.schema.json`;
+- `docs/execution-evidence.md`;
+- positive/negative contract fixtures;
+- schema self-tests and release gating.
 
 When extending the Moon integration, preserve Linux/Windows parity and the producer-evidence versus current-materialization-evidence distinction described in `docs/moon-orchestration.md`.
 
