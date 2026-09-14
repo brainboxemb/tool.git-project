@@ -60,6 +60,32 @@ moon_version_ok() {
   [[ "$output" == *"$MOON_VERSION"* ]]
 }
 
+extract_moon_archive() {
+  local archive="$1"
+  local destination="$2"
+
+  if command -v xz >/dev/null 2>&1; then
+    tar -xJf "$archive" -C "$destination"
+    return 0
+  fi
+
+  if command -v python3 >/dev/null 2>&1 && python3 -c 'import lzma, tarfile' >/dev/null 2>&1; then
+    if ! python3 - "$archive" "$destination" <<'PY'
+import sys
+import tarfile
+
+with tarfile.open(sys.argv[1], mode="r:xz") as bundle:
+    bundle.extractall(sys.argv[2])
+PY
+    then
+      fail "Python fallback could not extract the pinned Moon .tar.xz archive."
+    fi
+    return 0
+  fi
+
+  fail "Moon Linux bootstrap requires either xz or Python 3 with lzma support to extract the pinned .tar.xz runtime."
+}
+
 bootstrap_moon() {
   local install_root="$1"
   local install_dir="$install_root/$MOON_VERSION/linux-x86_64"
@@ -95,7 +121,7 @@ bootstrap_moon() {
     fail "Moon archive digest mismatch: $actual"
   fi
 
-  tar -xJf "$archive" -C "$temp_dir/extract"
+  extract_moon_archive "$archive" "$temp_dir/extract"
   found="$(find "$temp_dir/extract" -type f -name moon -print -quit)"
   [[ -n "$found" ]] || { rm -rf "$temp_dir"; fail "moon binary not found after extraction."; }
 

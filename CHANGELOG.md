@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.2.3 — 2026-09-14
+
+### Fixed
+
+- Make Linux Moon runtime bootstrap portable to minimal containers that provide `tar` but not the external `xz` executable by falling back to Python 3 `lzma`/`tarfile` extraction.
+- Preserve SHA-256 verification before extraction and report a precise prerequisite error when neither `xz` nor Python 3 with `lzma` support is available.
+- Add Linux regression coverage that deliberately removes `xz` from the bootstrap `PATH`.
+
 ## 0.2.2 — 2026-09-13
 
 ### Fixed
