@@ -15,7 +15,7 @@ function Get-ExecutionCount([string]$Repository) {
 function Assert-Decision([string]$Evidence, [bool]$Affected, [string]$Status) {
     $decision = Get-Content -LiteralPath (Join-Path $Evidence 'decision.json') -Raw | ConvertFrom-Json
     if ([bool]$decision.affected -ne $Affected) { throw "Unexpected affected decision in $Evidence" }
-    if ($decision.status -ne $Status) { throw "Unexpected status in $Evidence: $($decision.status)" }
+    if ($decision.status -ne $Status) { throw "Unexpected status in ${Evidence}: $($decision.status)" }
 }
 
 try {
