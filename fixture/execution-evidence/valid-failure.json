@@ -1,0 +1,13 @@
+{
+  "schema": "brainboxemb.execution-evidence",
+  "schema_version": 1,
+  "capability": "docs.assemble",
+  "owner": "brainboxemb/2026-010-01.meta.event-timing-software",
+  "action": "docs.assemble",
+  "source_revision": "3333333333333333333333333333333333333333",
+  "owner_revision": "3333333333333333333333333333333333333333",
+  "status": "failure",
+  "exit_code": 2,
+  "log": "execution.log",
+  "domain_evidence": []
+}
