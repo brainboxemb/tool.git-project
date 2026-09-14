@@ -9,8 +9,12 @@ on:
       - 'moon.yml'
       - 'moon-project.sh'
       - 'moon-project.ps1'
+      - 'moon-affected.sh'
+      - 'moon-affected.ps1'
       - 'support/test-moon.sh'
       - 'support/test-moon.ps1'
+      - 'support/test-moon-affected.sh'
+      - 'support/test-moon-affected.ps1'
       - 'fixture/moon/**'
       - '.gitignore'
       - 'VERSION'
@@ -24,8 +28,12 @@ on:
       - 'moon.yml'
       - 'moon-project.sh'
       - 'moon-project.ps1'
+      - 'moon-affected.sh'
+      - 'moon-affected.ps1'
       - 'support/test-moon.sh'
       - 'support/test-moon.ps1'
+      - 'support/test-moon-affected.sh'
+      - 'support/test-moon-affected.ps1'
       - 'fixture/moon/**'
       - '.gitignore'
       - 'VERSION'
@@ -61,6 +69,16 @@ jobs:
         shell: pwsh
         run: .\support\test-moon.ps1
 
+      - name: Run native Linux affected-preflight regression
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash support/test-moon-affected.sh
+
+      - name: Run native Windows affected-preflight regression
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\support\test-moon-affected.ps1
+
       - name: Invoke local production composite action
         uses: ./moon
         with:
@@ -92,6 +110,7 @@ jobs:
           path: |
             moon-test-results
             .moon/invocations
+            .moon/preflight
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 14
