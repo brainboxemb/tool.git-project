@@ -1,0 +1,62 @@
+name: Test execution evidence schema
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install pinned schema validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input 'jsonschema==4.25.1'
+
+      - name: Validate schema and fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          from jsonschema import Draft202012Validator
+
+          schema_path = Path('schemas/execution-evidence.schema.json')
+          fixture_root = Path('fixture/execution-evidence')
+
+          schema = json.loads(schema_path.read_text(encoding='utf-8'))
+          Draft202012Validator.check_schema(schema)
+          validator = Draft202012Validator(schema)
+
+          valid = sorted(fixture_root.glob('valid-*.json'))
+          invalid = sorted(fixture_root.glob('invalid-*.json'))
+          if not valid or not invalid:
+              raise SystemExit('expected both valid and invalid execution-evidence fixtures')
+
+          for path in valid:
+              instance = json.loads(path.read_text(encoding='utf-8'))
+              errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.path))
+              if errors:
+                  detail = '\n'.join(f'{path}: {error.message}' for error in errors)
+                  raise SystemExit(f'valid fixture rejected:\n{detail}')
+              print(f'VALID {path}')
+
+          for path in invalid:
+              instance = json.loads(path.read_text(encoding='utf-8'))
+              errors = list(validator.iter_errors(instance))
+              if not errors:
+                  raise SystemExit(f'invalid fixture unexpectedly accepted: {path}')
+              print(f'INVALID-AS-EXPECTED {path}: {errors[0].message}')
+          PY
