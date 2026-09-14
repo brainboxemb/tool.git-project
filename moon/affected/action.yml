@@ -1,9 +1,9 @@
 name: Moon affected preflight
-description: Determine whether one configured Moon task is affected between explicit VCS revisions without executing producer commands.
+description: Determine whether executing one configured Moon target would traverse affected work between explicit VCS revisions, without executing producer commands.
 
 inputs:
   task:
-    description: Fully-qualified Moon task target, for example consumer:scad.ci.
+    description: Fully-qualified Moon task target, for example consumer:scad.ci. The target is affected when Moon marks it or an upstream dependency affected.
     required: true
   base:
     description: Base branch, commit, or revision.
@@ -22,7 +22,7 @@ inputs:
 
 outputs:
   affected:
-    description: true when the task is affected or when the preflight must fail conservative; false when Moon proves it unaffected.
+    description: true when the target or an upstream dependency is affected, or when the preflight must fail conservative; false when Moon proves the target execution scope unaffected.
     value: ${{ steps.linux.outputs.affected || steps.windows.outputs.affected }}
   evidence-directory:
     description: Configured evidence directory.
@@ -37,7 +37,7 @@ runs:
         path: ${{ runner.temp }}/tool-git-project/moon-runtime
         key: tool-git-project-moon-runtime-${{ runner.os }}-2.5.4
 
-    - name: Query affected task on Linux
+    - name: Query affected target on Linux
       id: linux
       if: runner.os == 'Linux'
       shell: bash
@@ -54,7 +54,7 @@ runs:
         test "$result" = true -o "$result" = false
         echo "affected=$result" >> "$GITHUB_OUTPUT"
 
-    - name: Query affected task on Windows
+    - name: Query affected target on Windows
       id: windows
       if: runner.os == 'Windows'
       shell: pwsh
