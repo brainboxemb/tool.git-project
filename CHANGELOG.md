@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.2.4 — 2026-09-14
+
+### Added
+
+- Normative `brainboxemb.execution-evidence` JSON Schema v1 for persistent producer execution evidence.
+- Positive and negative contract fixtures covering tool-owned and project-owned producers, exact revisions, status/exit-code consistency, and extensible domain-owned fields.
+- `docs/execution-evidence.md` describing the standard `evidence/executions/<execution-id>/` layout and the producer-evidence versus current-materialization boundary.
+- Dedicated schema/fixture CI validation using a pinned JSON Schema implementation as development tooling only.
+
+### Changed
+
+- Release gating now requires the execution-evidence schema test on the exact `main` release commit.
+- `AGENTS.md` records the generic schema ownership boundary while keeping creation of real execution evidence with domain/project owners and keeping the Git-only core free of new runtime prerequisites.
+
 ## 0.2.3 — 2026-09-14
 
 ### Fixed
