@@ -63,7 +63,9 @@ try {
     if ((Get-ExecutionCount $Repo) -ne 0) { throw 'Aggregate affected preflight executed the producer.' }
     Assert-Decision $aggregateEvidence $true 'success'
     $aggregateQuery = Get-Content -LiteralPath (Join-Path $aggregateEvidence 'affected-tasks.json') -Raw | ConvertFrom-Json
-    if ($aggregateQuery.options.downstream -ne 'deep') { throw 'Aggregate affected evidence did not retain Moon downstream=deep traversal.' }
+    $aggregateAffected = $aggregateQuery.options.affected.tasks.'fixture:cache.aggregate'
+    if ($null -eq $aggregateAffected) { throw 'Aggregate affected evidence did not include fixture:cache.aggregate.' }
+    if ($aggregateAffected.upstream -notcontains 'fixture:cache.fixture') { throw 'Aggregate affected evidence did not identify fixture:cache.fixture as affected upstream work.' }
 
     $conservativeEvidence = Join-Path $Repo '.moon/preflight/conservative'
     $conservativeResult = (& (Join-Path $Root 'moon-affected.ps1') 'fixture:cache.fixture' -Repo $Repo -Base 'refs/heads/does-not-exist' -Head $inputRevision -InstallRoot $InstallRoot -EvidenceDir $conservativeEvidence | Select-Object -Last 1).Trim()
@@ -83,7 +85,7 @@ try {
             query_does_not_execute_producer = $true
             missing_revision_fails_conservative = $true
             explicit_base_head = $true
-            moon_downstream_deep = $true
+            moon_graph_propagation = $true
         }
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Results 'windows-affected.json') -Encoding utf8
 
