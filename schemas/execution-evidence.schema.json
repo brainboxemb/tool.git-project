@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:brainboxemb:schema:execution-evidence:1",
+  "title": "brainboxemb execution evidence",
+  "description": "Minimum persistent producer execution evidence shared across repository domains.",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "capability",
+    "owner",
+    "action",
+    "source_revision",
+    "owner_revision",
+    "status",
+    "exit_code",
+    "log",
+    "domain_evidence"
+  ],
+  "properties": {
+    "schema": {
+      "const": "brainboxemb.execution-evidence"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9A-Fa-f]{40,64}$"
+    },
+    "owner_revision": {
+      "type": "string",
+      "pattern": "^[0-9A-Fa-f]{40,64}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failure"]
+    },
+    "exit_code": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "log": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {"const": "success"}
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "exit_code": {"const": 0}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {"const": "failure"}
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "exit_code": {"minimum": 1}
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}
