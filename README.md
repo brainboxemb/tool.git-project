@@ -144,6 +144,22 @@ The action caches the pinned Moon runtime separately from Moon's portable `hashe
 
 See [`docs/moon-orchestration.md`](docs/moon-orchestration.md) for the full production contract and ownership boundary.
 
+## Persistent producer execution evidence
+
+Persistent generated output may include a domain-neutral producer execution envelope at:
+
+```text
+evidence/executions/<execution-id>/
+  execution.json
+  execution.log
+```
+
+The normative machine-readable contract is [`schemas/execution-evidence.schema.json`](schemas/execution-evidence.schema.json). It records the producer capability, action owner, exact source/owner revisions, result, retained human-readable log and links to richer domain evidence without flattening Java, SCAD or documentation semantics.
+
+Producer execution evidence is separate from current Moon materialization evidence under `orchestration/` and must not be rewritten when equivalent producer output is later hydrated.
+
+See [`docs/execution-evidence.md`](docs/execution-evidence.md) for the ownership, schema and publication rules.
+
 ## Consumer bootstrap launchers
 
 A consumer has a chicken-and-egg problem: `tool.git-project` must exist before it can run. The [`bootstrap/`](bootstrap/) directory therefore contains tiny root-launcher templates.
@@ -230,4 +246,4 @@ The bootstrap engine itself is always pinned by its parent gitlink. Reusable Git
 
 `fixture/` is intentionally build-system-neutral. CI creates a temporary Git consumer repository, pins the current `tool.git-project` revision as its bootstrap gitlink, removes the initialized worktree to emulate a fresh clone, and then proves root-level bootstrap plus managed dependency validation, status and idempotent update on both Linux and Windows.
 
-Separate lifecycle tests exercise PR-preview cleanup, generated-output publication, the reusable release contract, and the optional Moon production interface. Moon's architectural behavior was qualified before production implementation; the owner regression here only proves the released wrapper preserves the accepted cache/hydration contract on Linux and Windows.
+Separate lifecycle tests exercise PR-preview cleanup, generated-output publication, the reusable release contract, the execution-evidence schema/fixtures, and the optional Moon production interface. Moon's architectural behavior was qualified before production implementation; the owner regression here only proves the released wrapper preserves the accepted cache/hydration contract on Linux and Windows.
