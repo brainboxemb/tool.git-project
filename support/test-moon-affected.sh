@@ -46,6 +46,12 @@ docs_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REPO
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$docs_evidence" false success
 
+aggregate_docs_evidence="$REPO/.moon/preflight/aggregate-docs"
+aggregate_docs_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.aggregate --repo "$REPO" --base "$base_revision" --head "$docs_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$aggregate_docs_evidence")"
+[[ "$aggregate_docs_result" == "false" ]]
+[[ "$(count_executions "$REPO")" == "0" ]]
+assert_decision "$aggregate_docs_evidence" false success
+
 printf '\nrelevant committed preflight change\n' >> "$REPO/fixture/moon/input.txt"
 git -C "$REPO" add fixture/moon/input.txt
 git -C "$REPO" commit --quiet -m 'Test affected task input decision'
@@ -56,6 +62,13 @@ input_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REP
 [[ "$input_result" == "true" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$input_evidence" true success
+
+aggregate_evidence="$REPO/.moon/preflight/aggregate"
+aggregate_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.aggregate --repo "$REPO" --base "$docs_revision" --head "$input_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$aggregate_evidence")"
+[[ "$aggregate_result" == "true" ]]
+[[ "$(count_executions "$REPO")" == "0" ]]
+assert_decision "$aggregate_evidence" true success
+grep -F '"downstream": "deep"' "$aggregate_evidence/affected-tasks.json" >/dev/null
 
 conservative_evidence="$REPO/.moon/preflight/conservative"
 conservative_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REPO" --base 'refs/heads/does-not-exist' --head "$input_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$conservative_evidence")"
@@ -71,9 +84,12 @@ cat > "$RESULTS/linux-affected.json" <<EOF
   "checks": {
     "readme_only_unaffected": true,
     "task_input_affected": true,
+    "aggregate_upstream_affected": true,
+    "aggregate_readme_only_unaffected": true,
     "query_does_not_execute_producer": true,
     "missing_revision_fails_conservative": true,
-    "explicit_base_head": true
+    "explicit_base_head": true,
+    "moon_downstream_deep": true
   }
 }
 EOF
