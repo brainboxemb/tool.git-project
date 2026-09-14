@@ -9,6 +9,7 @@ Usage:
   moon-affected.sh TASK --base REV --head REV [--repo PATH] [--install-root PATH] [--evidence-dir PATH]
 
 Prints exactly `true` or `false` to stdout. Diagnostic query output is written to the evidence directory.
+The target is considered affected when Moon marks the target itself or one of its upstream dependencies affected.
 EOF
 }
 
@@ -123,14 +124,17 @@ task_id="${task#*:}"
 project_regex="^$(regex_escape "$project")$"
 task_regex="^$(regex_escape "$task_id")$"
 
-if ! (cd "$repo" && "$moon_bin" query tasks --affected --project "$project_regex" --id "$task_regex" < "$evidence_dir/changed-files.json") >"$evidence_dir/affected-tasks.json" 2>"$evidence_dir/affected-tasks-error.log"; then
+# Moon owns both the affected decision and graph traversal. `--downstream deep`
+# propagates directly affected tasks to aggregate/dependent targets, so querying
+# an aggregate answers whether executing it would traverse affected work.
+if ! (cd "$repo" && "$moon_bin" query tasks --affected --downstream deep --project "$project_regex" --id "$task_regex" < "$evidence_dir/changed-files.json") >"$evidence_dir/affected-tasks.json" 2>"$evidence_dir/affected-tasks-error.log"; then
   conservative_true "moon-affected-task-query-failed" "$moon_version"
 fi
 
 if grep -Fq "\"$task_id\"" "$evidence_dir/affected-tasks.json"; then
-  write_decision true success task-affected "$moon_version"
+  write_decision true success target-or-upstream-affected "$moon_version"
   printf 'true\n'
 else
-  write_decision false success task-unaffected "$moon_version"
+  write_decision false success target-and-upstream-unaffected "$moon_version"
   printf 'false\n'
 fi
