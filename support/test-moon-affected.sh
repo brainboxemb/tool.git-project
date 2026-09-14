@@ -25,6 +25,12 @@ assert_decision() {
   grep -F "\"status\": \"$expected_status\"" "$evidence/decision.json" >/dev/null
 }
 
+show_result() {
+  local label="$1" result="$2" evidence="$3"
+  printf '%s result=%s\n' "$label" "$result"
+  cat "$evidence/affected-tasks.json"
+}
+
 cd "$ROOT"
 git clone --quiet --no-hardlinks "$ROOT" "$REPO"
 git -C "$REPO" config user.email 'moon-affected-test@example.invalid'
@@ -42,12 +48,14 @@ docs_revision="$(git -C "$REPO" rev-parse HEAD)"
 
 docs_evidence="$REPO/.moon/preflight/docs"
 docs_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REPO" --base "$base_revision" --head "$docs_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$docs_evidence")"
+show_result docs "$docs_result" "$docs_evidence"
 [[ "$docs_result" == "false" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$docs_evidence" false success
 
 aggregate_docs_evidence="$REPO/.moon/preflight/aggregate-docs"
 aggregate_docs_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.aggregate --repo "$REPO" --base "$base_revision" --head "$docs_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$aggregate_docs_evidence")"
+show_result aggregate-docs "$aggregate_docs_result" "$aggregate_docs_evidence"
 [[ "$aggregate_docs_result" == "false" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$aggregate_docs_evidence" false success
@@ -59,12 +67,14 @@ input_revision="$(git -C "$REPO" rev-parse HEAD)"
 
 input_evidence="$REPO/.moon/preflight/input"
 input_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REPO" --base "$docs_revision" --head "$input_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$input_evidence")"
+show_result input "$input_result" "$input_evidence"
 [[ "$input_result" == "true" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$input_evidence" true success
 
 aggregate_evidence="$REPO/.moon/preflight/aggregate"
 aggregate_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.aggregate --repo "$REPO" --base "$docs_revision" --head "$input_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$aggregate_evidence")"
+show_result aggregate "$aggregate_result" "$aggregate_evidence"
 [[ "$aggregate_result" == "true" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$aggregate_evidence" true success
