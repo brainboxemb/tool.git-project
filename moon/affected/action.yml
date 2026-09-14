@@ -1,0 +1,72 @@
+name: Moon affected preflight
+description: Determine whether one configured Moon task is affected between explicit VCS revisions without executing producer commands.
+
+inputs:
+  task:
+    description: Fully-qualified Moon task target, for example consumer:scad.ci.
+    required: true
+  base:
+    description: Base branch, commit, or revision.
+    required: true
+  head:
+    description: Head branch, commit, or revision.
+    required: true
+  working-directory:
+    description: Repository worktree containing .moon/workspace.yml and moon.yml.
+    required: false
+    default: .
+  evidence-directory:
+    description: Directory for preflight query evidence, relative to the repository unless absolute.
+    required: false
+    default: .moon/preflight
+
+outputs:
+  affected:
+    description: true when the task is affected or when the preflight must fail conservative; false when Moon proves it unaffected.
+    value: ${{ steps.linux.outputs.affected || steps.windows.outputs.affected }}
+  evidence-directory:
+    description: Configured evidence directory.
+    value: ${{ inputs.evidence-directory }}
+
+runs:
+  using: composite
+  steps:
+    - name: Restore pinned Moon runtime
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ runner.temp }}/tool-git-project/moon-runtime
+        key: tool-git-project-moon-runtime-${{ runner.os }}-2.5.4
+
+    - name: Query affected task on Linux
+      id: linux
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        MOON_TASK: ${{ inputs.task }}
+        MOON_BASE_REV: ${{ inputs.base }}
+        MOON_HEAD_REV: ${{ inputs.head }}
+        MOON_REPO: ${{ inputs.working-directory }}
+        MOON_EVIDENCE_DIR: ${{ inputs.evidence-directory }}
+        MOON_INSTALL_ROOT: ${{ runner.temp }}/tool-git-project/moon-runtime
+      run: |
+        set -euo pipefail
+        result="$(bash "$GITHUB_ACTION_PATH/../../moon-affected.sh" "$MOON_TASK" --repo "$MOON_REPO" --base "$MOON_BASE_REV" --head "$MOON_HEAD_REV" --install-root "$MOON_INSTALL_ROOT" --evidence-dir "$MOON_EVIDENCE_DIR")"
+        test "$result" = true -o "$result" = false
+        echo "affected=$result" >> "$GITHUB_OUTPUT"
+
+    - name: Query affected task on Windows
+      id: windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        MOON_TASK: ${{ inputs.task }}
+        MOON_BASE_REV: ${{ inputs.base }}
+        MOON_HEAD_REV: ${{ inputs.head }}
+        MOON_REPO: ${{ inputs.working-directory }}
+        MOON_EVIDENCE_DIR: ${{ inputs.evidence-directory }}
+        MOON_INSTALL_ROOT: ${{ runner.temp }}/tool-git-project/moon-runtime
+      run: |
+        $script = Join-Path $env:GITHUB_ACTION_PATH '..\..\moon-affected.ps1'
+        $result = (& $script $env:MOON_TASK -Repo $env:MOON_REPO -Base $env:MOON_BASE_REV -Head $env:MOON_HEAD_REV -InstallRoot $env:MOON_INSTALL_ROOT -EvidenceDir $env:MOON_EVIDENCE_DIR | Select-Object -Last 1).Trim()
+        if ($result -ne 'true' -and $result -ne 'false') { throw "Unexpected affected result: $result" }
+        "affected=$result" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append

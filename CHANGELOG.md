@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.2.5 — 2026-09-14
+
+### Added
+
+- Generic Moon 2.5.4 affected preflight for explicit VCS base/head ranges without executing producer commands.
+- Linux and native Windows wrappers plus released composite action `moon/affected` for lightweight host-side CI gates before expensive domain runtimes or containers.
+- Persistent preflight decision/query evidence under `.moon/preflight`, separate from producer execution and Moon materialization evidence.
+- Real Git/Moon regression coverage proving README-only changes are unaffected, task-input changes are affected, missing revisions fail conservative, and preflight never executes the fixture producer.
+
+### Changed
+
+- Moon orchestration CI now qualifies the affected/preflight contract on Linux and Windows in addition to normal execution/cache/hydration behavior.
+- Domain consumers can gate expensive jobs from Moon's declared task inputs/graph instead of maintaining duplicate changed-file rules in GitHub Actions.
+
 ## 0.2.4 — 2026-09-14
 
 ### Added
