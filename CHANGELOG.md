@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Fixed
+
+- Treat a requested aggregate Moon target as affected when Moon marks one of the tasks it would execute as affected, instead of checking only the aggregate task's direct inputs.
+- Use Moon's own deep downstream graph propagation for aggregate affected decisions; no parallel dependency graph or domain-specific changed-path list is introduced.
+- Preserve conservative `affected=true` behavior for missing revisions or query uncertainty while keeping README-only/unrelated changes unaffected.
+
+### Changed
+
+- Explicit base/head affected preflight documentation now uses the qualified minimal checkout: exact shallow/blobless head plus exact shallow base, with no requirement for full repository history when no merge-base or ancestry traversal is needed.
+- Linux and native Windows regressions now cover direct affected tasks, aggregate propagation, README-only aggregate skips, composite-action packaging, and producer non-execution.
+
 ## 0.2.5 — 2026-09-14
 
 ### Added
@@ -118,27 +129,3 @@
   - pull request #N -> `dev/pr-N/<suffix>`;
   - `main` -> `prod/<suffix>`;
   - release tag `vX.Y.Z` -> `rel/vX.Y.Z/<suffix>`.
-- Event-context publication self-test that materializes a disposable generated branch, verifies its content, and removes it again.
-- Release-gate proof that dispatches the publication test on the newly created release tag before publishing the GitHub Release.
-
-### Changed
-
-- Generated-output publication is now repository-generic and accepts the prepared Actions artifact plus branch suffix from the domain owner.
-- Java remains responsible for preparing `bld` output; SCAD/docs can adopt the same branch-materialization primitive later without moving domain build logic into this repository.
-
-## 0.1.0 — 2026-09-13
-
-### Added
-
-- Generic reusable PR-preview cleanup workflow for `dev/pr-<N>/<suffix>` branches.
-- Optional same-repository merged source-branch cleanup while protecting default, `prod/*`, release and arbitrary refs.
-- Source-controlled `VERSION` and guarded release workflow for reusable cross-repository interfaces.
-- Linux and Windows owner self-tests plus live temporary-ref cleanup evidence.
-
-### Fixed
-
-- Protect dirty dependency worktrees before switching a committed gitlink during bootstrap/update on both Linux and Windows.
-
-### Changed
-
-- Cross-repository reusable workflows are consumed from deliberate released tags instead of moving `main`.
