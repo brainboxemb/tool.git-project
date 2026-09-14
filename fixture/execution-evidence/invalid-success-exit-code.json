@@ -1,0 +1,13 @@
+{
+  "schema": "brainboxemb.execution-evidence",
+  "schema_version": 1,
+  "capability": "scad.verify",
+  "owner": "brainboxemb/tool.scad-project",
+  "action": "verify",
+  "source_revision": "5555555555555555555555555555555555555555",
+  "owner_revision": "6666666666666666666666666666666666666666",
+  "status": "success",
+  "exit_code": 1,
+  "log": "execution.log",
+  "domain_evidence": []
+}
