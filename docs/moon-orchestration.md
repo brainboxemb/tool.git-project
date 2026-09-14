@@ -40,6 +40,8 @@ PowerShell equivalents use `moon-project.ps1`.
 
 The bootstrap command reuses an already-correct `MOON_BIN`, an already-correct Moon on `PATH`, or the previously installed pinned runtime before downloading anything.
 
+On Linux, the pinned runtime archive is SHA-256 verified before extraction. Normal hosts use `tar` with the external `xz` executable. Minimal containers that do not provide `xz` automatically fall back to Python 3 when its standard `lzma` and `tarfile` modules are available. If neither extraction path is available, bootstrap fails with an explicit prerequisite error instead of failing indirectly inside `tar`.
+
 ## Repository configuration
 
 Consumers use Moon's own configuration instead of a parallel `project.build.yml` model.
@@ -105,7 +107,7 @@ Moon's affected/change model needs complete commit history. To keep that checkou
 Then call the released composite action:
 
 ```yaml
-- uses: brainboxemb/tool.git-project/moon@v0.2.0
+- uses: brainboxemb/tool.git-project/moon@v0.2.3
   with:
     task: consumer:java.canonical
     cache-namespace: java-canonical
