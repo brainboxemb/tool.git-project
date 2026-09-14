@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_ROOT="$(mktemp -d)/moon-runtime"
+XZLESS_PARENT=""
 FRESH_PARENT=""
 FRESH=""
 RESULTS="$ROOT/moon-test-results"
@@ -23,6 +24,7 @@ cleanup() {
   rm -rf "$ROOT/fixture/moon/out" "$ROOT/fixture/moon/.executions" "$ROOT/.moon/cache" "$ROOT/.moon/invocations"
   if [[ -n "$FRESH" ]]; then git -C "$ROOT" worktree remove --force "$FRESH" >/dev/null 2>&1 || true; fi
   [[ -n "$FRESH_PARENT" ]] && rm -rf "$FRESH_PARENT"
+  [[ -n "$XZLESS_PARENT" ]] && rm -rf "$XZLESS_PARENT"
   rm -rf "$(dirname "$INSTALL_ROOT")"
 }
 trap cleanup EXIT
@@ -32,6 +34,20 @@ cd "$ROOT"
 # The separate Self-test Git project tooling workflow proves the existing Git-only
 # core on this same PR head. This regression intentionally starts at the optional
 # Moon boundary instead of duplicating the consumer-bootstrap fixture here.
+echo 'Moon regression: bootstrap pinned runtime without external xz'
+XZLESS_PARENT="$(mktemp -d)"
+xzless_bin="$XZLESS_PARENT/bin"
+xzless_install="$XZLESS_PARENT/moon-runtime"
+mkdir -p "$xzless_bin"
+for command_name in bash dirname curl tar mktemp mkdir sha256sum awk rm find cp chmod python3; do
+  command_path="$(command -v "$command_name")"
+  [[ -n "$command_path" ]]
+  ln -s "$command_path" "$xzless_bin/$command_name"
+done
+xzless_moon_bin="$(PATH="$xzless_bin" MOON_INSTALL_ROOT="$xzless_install" "$xzless_bin/bash" ./moon-project.sh bootstrap)"
+[[ -x "$xzless_moon_bin" ]]
+"$xzless_moon_bin" --version | grep -F '2.5.4' >/dev/null
+
 echo 'Moon regression: bootstrap pinned runtime'
 start_ms="$(now_ms)"
 moon_bin="$(MOON_INSTALL_ROOT="$INSTALL_ROOT" bash ./moon-project.sh bootstrap)"
@@ -95,6 +111,7 @@ cat > "$RESULTS/linux.json" <<EOF
   "moon_version": "2.5.4",
   "bootstrap_ms": $bootstrap_ms,
   "checks": {
+    "xzless_bootstrap": true,
     "cold_execution": true,
     "exact_rerun_skips_command": true,
     "local_hydration_skips_command": true,
