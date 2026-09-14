@@ -79,6 +79,26 @@ jobs:
         shell: pwsh
         run: .\support\test-moon-affected.ps1
 
+      - name: Invoke local affected composite action
+        if: github.event_name == 'pull_request'
+        id: affected
+        uses: ./moon/affected
+        with:
+          task: fixture:cache.fixture
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          evidence-directory: .moon/preflight/action
+
+      - name: Verify affected composite action output
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          AFFECTED: ${{ steps.affected.outputs.affected }}
+        run: |
+          set -euo pipefail
+          test "$AFFECTED" = false
+          test -f .moon/preflight/action/decision.json
+
       - name: Invoke local production composite action
         uses: ./moon
         with:
