@@ -114,7 +114,7 @@
   - optional tagged verification dispatch/wait;
   - optional generic GitHub Release creation;
   - release-request branch cleanup.
-- Side-effect-free dry-run workflow coverage so the reusable contract is exercised before a release is attempted.
+- Side-effect-free dry-run workflow coverage so the reusable contract is exercised on pull requests and `main` without creating a tag, dispatching verification, creating a Release, or deleting refs.
 
 ### Changed
 
