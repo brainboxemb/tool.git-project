@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.6 — 2026-09-14
 
 ### Fixed
 
@@ -114,7 +114,7 @@
   - optional tagged verification dispatch/wait;
   - optional generic GitHub Release creation;
   - release-request branch cleanup.
-- Side-effect-free dry-run workflow coverage so the reusable release contract is exercised on pull requests and `main` without creating tags or releases.
+- Side-effect-free dry-run workflow coverage so the reusable contract is exercised before a release is attempted.
 
 ### Changed
 
@@ -129,3 +129,27 @@
   - pull request #N -> `dev/pr-N/<suffix>`;
   - `main` -> `prod/<suffix>`;
   - release tag `vX.Y.Z` -> `rel/vX.Y.Z/<suffix>`.
+- Event-context publication self-test that materializes a disposable generated branch, verifies its content, and removes it again.
+- Release-gate proof that dispatches the publication test on the newly created release tag before publishing the GitHub Release.
+
+### Changed
+
+- Generated-output publication is now repository-generic and accepts the prepared Actions artifact plus branch suffix from the domain owner.
+- Java remains responsible for preparing `bld` output; SCAD/docs can adopt the same branch-materialization primitive later without moving domain build logic into this repository.
+
+## 0.1.0 — 2026-09-13
+
+### Added
+
+- Generic reusable PR-preview cleanup workflow for `dev/pr-<N>/<suffix>` branches.
+- Optional same-repository merged source-branch cleanup while protecting default, `prod/*`, release and arbitrary refs.
+- Source-controlled `VERSION` and guarded release workflow for reusable cross-repository interfaces.
+- Linux and Windows owner self-tests plus live temporary-ref cleanup evidence.
+
+### Fixed
+
+- Protect dirty dependency worktrees before switching a committed gitlink during bootstrap/update on both Linux and Windows.
+
+### Changed
+
+- Cross-repository reusable workflows are consumed from deliberate released tags instead of moving `main`.
