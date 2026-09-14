@@ -1,0 +1,13 @@
+{
+  "schema": "brainboxemb.execution-evidence",
+  "schema_version": 1,
+  "capability": "docs.planning",
+  "owner": "brainboxemb/2026-010-01.meta.event-timing-software",
+  "action": "docs.planning",
+  "source_revision": "main",
+  "owner_revision": "7777777777777777777777777777777777777777",
+  "status": "success",
+  "exit_code": 0,
+  "log": "execution.log",
+  "domain_evidence": []
+}
