@@ -33,6 +33,7 @@ jobs:
         generated-output-publish-test.yml
         reusable-release-test.yml
         moon-orchestration-test.yml
+        execution-evidence-schema-test.yml
       tagged_verification_workflow: generated-output-publish-test.yml
       wait_for_tagged_verification: true
       create_github_release: true

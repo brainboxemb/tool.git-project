@@ -1,0 +1,12 @@
+{
+  "schema": "brainboxemb.execution-evidence",
+  "schema_version": 1,
+  "capability": "java.canonical",
+  "owner": "brainboxemb/tool.java-project",
+  "action": "canonical",
+  "source_revision": "4444444444444444444444444444444444444444",
+  "status": "success",
+  "exit_code": 0,
+  "log": "execution.log",
+  "domain_evidence": []
+}
