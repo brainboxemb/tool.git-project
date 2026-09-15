@@ -199,7 +199,12 @@ release tag vX.Y.Z  -> rel/vX.Y.Z/<suffix>
 
 The domain producer prepares the complete output tree and chooses the suffix it owns, for example `bld`, `docs`, `build`, or `verification`. `tool.git-project` only owns the Git/repository materialization step.
 
-The reusable workflow `.github/workflows/reusable-generated-output-publish.yml` accepts the prepared Actions artifact and a single validated suffix. It does not run domain build/test engines and it does not rewrite provenance.
+Two released interfaces share the same publication implementation:
+
+- `generated-output/publish` publishes an already prepared tree directly from the current host job and leaves the caller worktree untouched, so multiple output families can be published sequentially without an artifact/job handoff;
+- `.github/workflows/reusable-generated-output-publish.yml` remains the artifact-based wrapper for intentionally separate producer/publication jobs and delegates to that same action.
+
+Both interfaces preserve the same branch mapping, exact-source stale checks, same-repository PR restriction and force-push safety. Direct same-job callers own job-level serialization for a target family; the reusable wrapper retains its built-in concurrency group.
 
 See [`docs/generated-output-publication.md`](docs/generated-output-publication.md) for the full contract.
 

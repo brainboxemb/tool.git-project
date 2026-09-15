@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.7 — 2026-09-15
+
+### Added
+
+- Reusable `generated-output/publish` composite action for publishing an already prepared generated-output tree directly from the current host job on Linux or Windows.
+- POSIX shell and PowerShell publisher entrypoints with the existing `dev/pr-N/<suffix>`, `prod/<suffix>`, and `rel/vX.Y.Z/<suffix>` branch contract.
+- Direct same-job regression coverage for sequential publications, caller-worktree preservation, stale-source suppression, invalid/empty input rejection, Linux contract behavior, and native Windows publication.
+
+### Changed
+
+- The artifact-based `reusable-generated-output-publish.yml` workflow now checks out its own exact workflow revision and delegates branch materialization to the same composite publisher used by same-job callers.
+- Generated-output staging now happens in a temporary Git repository rather than switching/cleaning the caller worktree, allowing multiple output families to publish sequentially in one job.
+- Source freshness is still checked before staging and immediately before force-push; direct same-job callers own job-level serialization while the artifact-based wrapper retains its concurrency group.
+
 ## 0.2.6 — 2026-09-14
 
 ### Fixed
@@ -72,7 +86,7 @@
 
 - Optional Moon `2.5.4` repository-orchestration companion for Linux and native Windows, with source-controlled download URLs and SHA-256 verification.
 - `moon-project.sh` / `moon-project.ps1` commands for pinned runtime bootstrap, Moon configuration validation, portable cache-path discovery, and named task invocation.
-- Composite `moon/action.yml` for released cross-repository consumption with separate pinned-runtime cache and portable Moon `hashes`/`outputs` cache restore/save.
+- Composite `moon/action.yml` for released cross-repository consumption with separate pinned-runtime cache and portable Moon `hashes` / `outputs` cache restore/save.
 - Current invocation/materialization evidence (`moon.log` + `materialization.json`) while preserving domain producer evidence inside declared task outputs.
 - Compact Linux/Windows owner regression covering the production wrappers against the already-qualified cold/cache-hit/local-hydration/fresh-hydration/invalidation contract.
 - `docs/moon-orchestration.md` describing the production ownership boundary and performance-first consumer contract.
@@ -152,4 +166,4 @@
 
 ### Changed
 
-- Cross-repository reusable workflows are consumed from deliberate released tags instead of moving `main`.
+- Cross-repository reusable workflows/actions are production interfaces; release/tag them before external consumption.

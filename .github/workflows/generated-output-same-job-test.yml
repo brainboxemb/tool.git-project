@@ -1,0 +1,152 @@
+name: Test same-job generated output publication
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  contract-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Test publisher contract with local Git remotes
+        shell: bash
+        run: tests/generated-output-publish-contract.sh
+
+  same-job-linux:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Prepare two output trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/publish-a" "$RUNNER_TEMP/publish-b" "$RUNNER_TEMP/publish-empty"
+          printf 'same-job A\n' > "$RUNNER_TEMP/publish-a/marker.txt"
+          printf 'same-job B\n' > "$RUNNER_TEMP/publish-b/marker.txt"
+          test -z "$(git status --porcelain)"
+      - name: Publish first tree
+        id: first
+        uses: ./generated-output/publish
+        with:
+          source-directory: ${{ runner.temp }}/publish-a
+          branch-suffix: same-job-a-${{ github.run_id }}
+          token: ${{ github.token }}
+      - name: Publish second tree
+        id: second
+        uses: ./generated-output/publish
+        with:
+          source-directory: ${{ runner.temp }}/publish-b
+          branch-suffix: same-job-b-${{ github.run_id }}
+          token: ${{ github.token }}
+      - name: Prove stale suppression
+        id: stale
+        uses: ./generated-output/publish
+        with:
+          source-directory: ${{ runner.temp }}/publish-a
+          branch-suffix: same-job-stale-${{ github.run_id }}
+          source-revision: '0000000000000000000000000000000000000000'
+          token: ${{ github.token }}
+      - name: Reject invalid suffix
+        id: invalid-suffix
+        continue-on-error: true
+        uses: ./generated-output/publish
+        with:
+          source-directory: ${{ runner.temp }}/publish-a
+          branch-suffix: bad/name
+          token: ${{ github.token }}
+      - name: Reject empty tree
+        id: empty-tree
+        continue-on-error: true
+        uses: ./generated-output/publish
+        with:
+          source-directory: ${{ runner.temp }}/publish-empty
+          branch-suffix: empty-${{ github.run_id }}
+          token: ${{ github.token }}
+      - name: Verify same-job results and caller worktree
+        shell: bash
+        env:
+          FIRST_BRANCH: ${{ steps.first.outputs.target-branch }}
+          SECOND_BRANCH: ${{ steps.second.outputs.target-branch }}
+          STALE_BRANCH: ${{ steps.stale.outputs.target-branch }}
+          FIRST_PUBLISHED: ${{ steps.first.outputs.published }}
+          SECOND_PUBLISHED: ${{ steps.second.outputs.published }}
+          STALE_PUBLISHED: ${{ steps.stale.outputs.published }}
+          INVALID_OUTCOME: ${{ steps.invalid-suffix.outcome }}
+          EMPTY_OUTCOME: ${{ steps.empty-tree.outcome }}
+        run: |
+          set -euo pipefail
+          test "$FIRST_PUBLISHED" = true
+          test "$SECOND_PUBLISHED" = true
+          test "$STALE_PUBLISHED" = false
+          test "$INVALID_OUTCOME" = failure
+          test "$EMPTY_OUTCOME" = failure
+          test -z "$(git status --porcelain)"
+          git fetch -q origin "+refs/heads/$FIRST_BRANCH:refs/remotes/origin/$FIRST_BRANCH" "+refs/heads/$SECOND_BRANCH:refs/remotes/origin/$SECOND_BRANCH"
+          test "$(git show "refs/remotes/origin/$FIRST_BRANCH:marker.txt")" = 'same-job A'
+          test "$(git show "refs/remotes/origin/$SECOND_BRANCH:marker.txt")" = 'same-job B'
+          if git ls-remote --exit-code --heads origin "refs/heads/$STALE_BRANCH" >/dev/null 2>&1; then
+            echo "stale branch was unexpectedly published: $STALE_BRANCH" >&2
+            exit 1
+          fi
+      - name: Clean generated branches
+        if: always()
+        shell: bash
+        env:
+          FIRST_BRANCH: ${{ steps.first.outputs.target-branch }}
+          SECOND_BRANCH: ${{ steps.second.outputs.target-branch }}
+          STALE_BRANCH: ${{ steps.stale.outputs.target-branch }}
+        run: |
+          for branch in "$FIRST_BRANCH" "$SECOND_BRANCH" "$STALE_BRANCH"; do
+            [[ -n "$branch" ]] && git push origin --delete "$branch" >/dev/null 2>&1 || true
+          done
+
+  same-job-windows:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - name: Checkout tool
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Prepare output tree
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'publish-windows'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Set-Content -LiteralPath (Join-Path $dir 'marker.txt') -Value 'same-job Windows' -NoNewline
+          if (git status --porcelain) { throw 'caller worktree was not clean before publication' }
+      - name: Publish on Windows
+        id: publish
+        uses: ./generated-output/publish
+        with:
+          source-directory: ${{ runner.temp }}/publish-windows
+          branch-suffix: same-job-windows-${{ github.run_id }}
+          token: ${{ github.token }}
+      - name: Verify Windows publication and caller worktree
+        shell: pwsh
+        env:
+          TARGET_BRANCH: ${{ steps.publish.outputs.target-branch }}
+          PUBLISHED: ${{ steps.publish.outputs.published }}
+        run: |
+          if ($env:PUBLISHED -ne 'true') { throw "publisher returned $env:PUBLISHED" }
+          if (git status --porcelain) { throw 'caller worktree changed during publication' }
+          git fetch -q origin "+refs/heads/$env:TARGET_BRANCH`:refs/remotes/origin/$env:TARGET_BRANCH"
+          $marker = (git show "refs/remotes/origin/$env:TARGET_BRANCH`:marker.txt").Trim()
+          if ($marker -ne 'same-job Windows') { throw "unexpected marker: $marker" }
+      - name: Clean generated branch
+        if: always()
+        shell: pwsh
+        env:
+          TARGET_BRANCH: ${{ steps.publish.outputs.target-branch }}
+        run: |
+          if ($env:TARGET_BRANCH) { git push origin --delete $env:TARGET_BRANCH 2>$null; if ($LASTEXITCODE -ne 0) { Write-Host 'branch already absent' } }

@@ -31,9 +31,10 @@ jobs:
         self-test.yml
         pr-preview-cleanup-test.yml
         generated-output-publish-test.yml
+        generated-output-same-job-test.yml
         reusable-release-test.yml
         moon-orchestration-test.yml
         execution-evidence-schema-test.yml
-      tagged_verification_workflow: generated-output-publish-test.yml
+      tagged_verification_workflow: generated-output-same-job-test.yml
       wait_for_tagged_verification: true
       create_github_release: true
