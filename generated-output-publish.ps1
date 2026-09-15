@@ -34,13 +34,14 @@ if (-not $remoteUrl) { $remoteUrl = "$serverUrl/$repository.git" }
 
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
 $credentialFile = Join-Path $tempRoot ("generated-output-credentials-" + [Guid]::NewGuid().ToString('N'))
+$credentialFileGit = $credentialFile.Replace('\', '/')
 $publishRepo = Join-Path $tempRoot ("generated-output-publish-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $publishRepo | Out-Null
 $serverHost = ([Uri]$serverUrl).Host
 [IO.File]::WriteAllText($credentialFile, "https://x-access-token:${token}@${serverHost}`n")
 
 function Invoke-GitCredentialed([string[]]$GitArgs) {
-  $allArgs = @('-c', "credential.helper=store --file=$credentialFile") + $GitArgs
+  $allArgs = @('-c', "credential.helper=store --file=$credentialFileGit") + $GitArgs
   return (Invoke-GitChecked -GitArgs $allArgs)
 }
 function Get-RemoteRef([string]$Ref) {
@@ -121,7 +122,7 @@ try {
   Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'init', '-q') | Out-Null
   Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'config', 'user.name', 'github-actions[bot]') | Out-Null
   Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com') | Out-Null
-  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'config', 'credential.helper', "store --file=$credentialFile") | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'config', 'credential.helper', "store --file=$credentialFileGit") | Out-Null
   Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'remote', 'add', 'origin', $remoteUrl) | Out-Null
   Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'switch', '--orphan', 'generated-output-publication') | Out-Null
   Get-ChildItem -LiteralPath $sourceDir -Force | Copy-Item -Destination $publishRepo -Recurse -Force
