@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.8 — 2026-09-15
+
+### Added
+
+- The released Moon affected action now exposes `affected-tasks`, a stable compact JSON array of fully-qualified affected Moon task IDs derived from the same single affected query as the existing boolean decision.
+- Persistent `affected-task-ids.json` evidence alongside Moon's complete `affected-tasks.json` diagnostic output.
+- Linux and native Windows owner coverage for zero, one and multiple affected tasks, plus conservative fallback with no falsely precise task list.
+
+### Changed
+
+- Preserve the existing `affected=true|false` compatibility contract while allowing domain tooling to select several coarse capabilities without rerunning Moon once per capability.
+- Conservative query failures continue to return `affected=true`; the precise task list is `[]` and `decision.json.status=conservative` tells the domain layer to use its safe full scope.
+
 ## 0.2.7 — 2026-09-15
 
 ### Added
