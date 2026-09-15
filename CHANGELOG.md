@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.7 — 2026-09-15
 
 ### Added
 
@@ -86,7 +86,7 @@
 
 - Optional Moon `2.5.4` repository-orchestration companion for Linux and native Windows, with source-controlled download URLs and SHA-256 verification.
 - `moon-project.sh` / `moon-project.ps1` commands for pinned runtime bootstrap, Moon configuration validation, portable cache-path discovery, and named task invocation.
-- Composite `moon/action.yml` for released cross-repository consumption with separate pinned-runtime cache and portable Moon `hashes`/`outputs` cache restore/save.
+- Composite `moon/action.yml` for released cross-repository consumption with separate pinned-runtime cache and portable Moon `hashes` / `outputs` cache restore/save.
 - Current invocation/materialization evidence (`moon.log` + `materialization.json`) while preserving domain producer evidence inside declared task outputs.
 - Compact Linux/Windows owner regression covering the production wrappers against the already-qualified cold/cache-hit/local-hydration/fresh-hydration/invalidation contract.
 - `docs/moon-orchestration.md` describing the production ownership boundary and performance-first consumer contract.
@@ -166,4 +166,4 @@
 
 ### Changed
 
-- Cross-repository reusable workflows are consumed from deliberate released tags instead of moving `main`.
+- Cross-repository reusable workflows/actions are production interfaces; release/tag them before external consumption.
