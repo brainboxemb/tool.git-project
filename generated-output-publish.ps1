@@ -46,10 +46,11 @@ function Invoke-GitCredentialed([string[]]$GitArgs) {
 function Get-RemoteRef([string]$Ref) {
   $lines = Invoke-GitCredentialed -GitArgs @('ls-remote', $remoteUrl, $Ref)
   if (-not $lines) { return '' }
-  return (($lines[0] -split '\s+')[0]).Trim()
+  $firstLine = @($lines)[0]
+  return (($firstLine -split '\s+')[0]).Trim()
 }
 function Resolve-TagCommit([string]$Tag) {
-  $lines = Invoke-GitCredentialed -GitArgs @('ls-remote', $remoteUrl, "refs/tags/$Tag", "refs/tags/$Tag^{}")
+  $lines = @(Invoke-GitCredentialed -GitArgs @('ls-remote', $remoteUrl, "refs/tags/$Tag", "refs/tags/$Tag^{}"))
   $peeled = ''
   $direct = ''
   foreach ($line in $lines) {
