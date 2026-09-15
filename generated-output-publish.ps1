@@ -41,7 +41,7 @@ $serverHost = ([Uri]$serverUrl).Host
 
 function Invoke-GitCredentialed([string[]]$GitArgs) {
   $allArgs = @('-c', "credential.helper=store --file=$credentialFile") + $GitArgs
-  return Invoke-GitChecked $allArgs
+  return (Invoke-GitChecked $allArgs)
 }
 function Get-RemoteRef([string]$Ref) {
   $lines = Invoke-GitCredentialed @('ls-remote', $remoteUrl, $Ref)
@@ -68,12 +68,12 @@ function Get-CurrentSourceRevision {
     if (-not $prHeadRef) { Fail 'missing pull-request head ref' }
     & git check-ref-format "refs/heads/$prHeadRef" *> $null
     if ($LASTEXITCODE -ne 0) { Fail "invalid pull-request head ref: $prHeadRef" }
-    return Get-RemoteRef "refs/heads/$prHeadRef"
+    return (Get-RemoteRef "refs/heads/$prHeadRef")
   }
-  if ($env:GITHUB_REF -eq 'refs/heads/main') { return Get-RemoteRef 'refs/heads/main' }
+  if ($env:GITHUB_REF -eq 'refs/heads/main') { return (Get-RemoteRef 'refs/heads/main') }
   if ($env:GITHUB_REF -like 'refs/tags/v*') {
     if ($env:GITHUB_REF_NAME -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { Fail "release tag must match vX.Y.Z: $($env:GITHUB_REF_NAME)" }
-    return Resolve-TagCommit $env:GITHUB_REF_NAME
+    return (Resolve-TagCommit $env:GITHUB_REF_NAME)
   }
   Fail "generated-output publication is only allowed for same-repository pull requests, main, or vX.Y.Z release tags; got $($env:GITHUB_REF)"
 }
