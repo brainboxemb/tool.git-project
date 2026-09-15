@@ -23,7 +23,7 @@ project.yml
        v
 tool.git-project
   Git-only validate / bootstrap / status / update
-  generic Git lifecycle workflows
+  generic Git lifecycle workflows/actions
   optional Moon orchestration companion
        |
        +--> managed Git submodules / pinned refs
@@ -199,7 +199,12 @@ release tag vX.Y.Z  -> rel/vX.Y.Z/<suffix>
 
 The domain producer prepares the complete output tree and chooses the suffix it owns, for example `bld`, `docs`, `build`, or `verification`. `tool.git-project` only owns the Git/repository materialization step.
 
-The reusable workflow `.github/workflows/reusable-generated-output-publish.yml` accepts the prepared Actions artifact and a single validated suffix. It does not run domain build/test engines and it does not rewrite provenance.
+Two released interfaces share the same publication implementation:
+
+- `generated-output/publish` publishes an already prepared tree directly from the current host job and leaves the caller worktree untouched, so multiple output families can be published sequentially without an artifact/job handoff;
+- `.github/workflows/reusable-generated-output-publish.yml` remains the artifact-based wrapper for intentionally separate producer/publication jobs and delegates to that same action.
+
+Both interfaces preserve the same branch mapping, exact-source stale checks, same-repository PR restriction and force-push safety. Direct same-job callers own job-level serialization for a target family; the reusable wrapper retains its built-in concurrency group.
 
 See [`docs/generated-output-publication.md`](docs/generated-output-publication.md) for the full contract.
 
@@ -220,49 +225,4 @@ dev/pr-8/bld
 dev/pr-4/docs
 ```
 
-The reusable workflow `.github/workflows/reusable-pr-preview-cleanup.yml` owns only the generic Git lifecycle operation. The calling domain tool or repository declares which suffixes it owns.
-
-Example caller:
-
-```yaml
-name: Cleanup PR previews
-
-on:
-  pull_request:
-    types: [closed]
-
-permissions:
-  contents: write
-
-jobs:
-  cleanup:
-    uses: brainboxemb/tool.git-project/.github/workflows/reusable-pr-preview-cleanup.yml@v0.2.0
-    with:
-      pr_number: ${{ github.event.pull_request.number }}
-      preview_suffixes: |
-        build
-        verification
-      delete_source_branch: true
-```
-
-The cleanup workflow only constructs deletion targets under `dev/pr-<positive integer>/<validated suffix>`. Callers cannot use it to delete `prod/*`, release refs, the default branch, or an arbitrary branch name.
-
-Deleting the merged source branch is optional and only applies to a same-repository merged pull request. A manual or non-PR invocation therefore cannot trigger source-branch deletion through that option.
-
-## Ref policy
-
-Preferred refs for dependencies managed through `project.yml` are:
-
-1. immutable full commit SHA for maximum reproducibility;
-2. stable version tag;
-3. branch only when a deliberately moving development dependency is desired.
-
-Branch refs are supported but are not immutable. A bootstrap/update resolves the branch to a concrete commit and records that commit through the parent repository gitlink.
-
-The bootstrap engine itself is always pinned by its parent gitlink. Reusable GitHub workflows/actions use released tags; do not call them from moving `main`.
-
-## Self-test fixture
-
-`fixture/` is intentionally build-system-neutral. CI creates a temporary Git consumer repository, pins the current `tool.git-project` revision as its bootstrap gitlink, removes the initialized worktree to emulate a fresh clone, and then proves root-level bootstrap plus managed dependency validation, status and idempotent update on both Linux and Windows.
-
-Separate lifecycle tests exercise PR-preview cleanup, generated-output publication, the reusable release contract, the execution-evidence schema/fixtures, and the optional Moon production interface. Moon's architectural behavior was qualified before production implementation; the owner regression here only proves the released wrapper preserves the accepted cache/hydration contract on Linux and Windows.
+The reusable cleanup workflow removes generated branches for a closed pull request while protecting default, production, release and unrelated refs. See [`docs/pr-preview-cleanup.md`](docs/pr-preview-cleanup.md) for the contract.
