@@ -183,7 +183,7 @@ if [[ "$source_revision" != "$latest_revision" ]]; then
   exit 0
 fi
 
-git_with_credentials -C "$publish_repo" push --force origin "HEAD:befs/heads/${target_branch}"
+git_with_credentials -C "$publish_repo" push --force origin "HEAD:refs/heads/${target_branch}"
 
 echo "Published generated output from ${source_revision} to ${target_branch}"
 write_output published true
