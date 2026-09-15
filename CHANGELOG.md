@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.2.6 — 2026-09-14
+
+### Fixed
+
+- Treat a requested aggregate Moon target as affected when Moon marks one of the tasks it would execute as affected, instead of checking only the aggregate task's direct inputs.
+- Use Moon's own deep downstream graph propagation for aggregate affected decisions; no parallel dependency graph or domain-specific changed-path list is introduced.
+- Preserve conservative `affected=true` behavior for missing revisions or query uncertainty while keeping README-only/unrelated changes unaffected.
+
+### Changed
+
+- Explicit base/head affected preflight documentation now uses the qualified minimal checkout: exact shallow/blobless head plus exact shallow base, with no requirement for full repository history when no merge-base or ancestry traversal is needed.
+- Linux and native Windows regressions now cover direct affected tasks, aggregate propagation, README-only aggregate skips, composite-action packaging, and producer non-execution.
 
 ## 0.2.5 — 2026-09-14
 
@@ -103,7 +114,7 @@
   - optional tagged verification dispatch/wait;
   - optional generic GitHub Release creation;
   - release-request branch cleanup.
-- Side-effect-free dry-run workflow coverage so the reusable release contract is exercised on pull requests and `main` without creating tags or releases.
+- Side-effect-free dry-run workflow coverage so the reusable contract is exercised on pull requests and `main` without creating a tag, dispatching verification, creating a Release, or deleting refs.
 
 ### Changed
 

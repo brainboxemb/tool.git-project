@@ -126,21 +126,40 @@ Local entrypoints:
 
 PowerShell uses the equivalent `moon-project.ps1` commands.
 
-For GitHub Actions, Moon-capable jobs should checkout complete history while keeping the clone blobless:
+For an explicit host-side affected preflight, checkout the exact head shallow and blobless, then fetch only the exact base commit shallowly. Submodules can remain uninitialised until the gate says domain work is needed:
 
 ```yaml
 - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
   with:
-    fetch-depth: 0
+    ref: ${{ env.HEAD_SHA }}
+    fetch-depth: 1
     filter: blob:none
+    submodules: false
 
-- uses: brainboxemb/tool.git-project/moon@v0.2.0
+- shell: bash
+  run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+- uses: brainboxemb/tool.git-project/moon/affected@v0.2.6
+  with:
+    task: consumer:scad.ci
+    base: ${{ env.BASE_SHA }}
+    head: ${{ env.HEAD_SHA }}
+```
+
+Moon 2.5.4 is qualified for this explicit two-revision comparison even when both commits are shallow history roots and intervening ancestry is not traversable. Workflows that need merge-base discovery or other ancestry traversal can still require fuller history; that is a different VCS contract.
+
+For production/cache execution, use the Moon action after the affected gate:
+
+```yaml
+- uses: brainboxemb/tool.git-project/moon@v0.2.6
   with:
     task: consumer:java.canonical
     cache-namespace: java-canonical
 ```
 
-The action caches the pinned Moon runtime separately from Moon's portable `hashes` / `outputs` task cache. Domain task outputs retain their original producer evidence; the current Moon invocation writes separate materialization evidence.
+The affected action treats an aggregate target as affected when Moon marks the target itself or work upstream of it affected, using Moon's own task graph rather than a duplicated changed-path/dependency model. Query uncertainty remains conservative and returns `affected=true`.
+
+The production action caches the pinned Moon runtime separately from Moon's portable `hashes` / `outputs` task cache. Domain task outputs retain their original producer evidence; the current Moon invocation writes separate materialization evidence.
 
 See [`docs/moon-orchestration.md`](docs/moon-orchestration.md) for the full production contract and ownership boundary.
 

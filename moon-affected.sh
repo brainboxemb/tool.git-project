@@ -9,6 +9,7 @@ Usage:
   moon-affected.sh TASK --base REV --head REV [--repo PATH] [--install-root PATH] [--evidence-dir PATH]
 
 Prints exactly `true` or `false` to stdout. Diagnostic query output is written to the evidence directory.
+The target is considered affected when Moon marks the target itself or one of its upstream dependencies affected.
 EOF
 }
 
@@ -21,10 +22,6 @@ repo_absolute() {
   local repo="$1"
   [[ -d "$repo" ]] || fail "Repository directory does not exist: $repo"
   (cd "$repo" && pwd)
-}
-
-regex_escape() {
-  printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g'
 }
 
 json_escape() {
@@ -56,6 +53,32 @@ conservative_true() {
   write_decision true conservative "$reason" "$moon_version"
   printf 'true\n'
   exit 0
+}
+
+task_is_in_query_result() {
+  local json_file="$1" project="$2" task_id="$3"
+  awk -v expected_project="$project" -v expected_task="$task_id" '
+    /^  "tasks": \{/ {
+      in_tasks = 1
+      next
+    }
+    in_tasks && /^  },?$/ {
+      exit
+    }
+    in_tasks && /^    "[^"]+": \{$/ {
+      line = $0
+      sub(/^    "/, "", line)
+      sub(/": \{$/, "", line)
+      current_project = line
+      next
+    }
+    in_tasks && current_project == expected_project && $0 == "      \"" expected_task "\": {" {
+      found = 1
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "$json_file"
 }
 
 task="${1:-}"
@@ -120,17 +143,19 @@ fi
 
 project="${task%%:*}"
 task_id="${task#*:}"
-project_regex="^$(regex_escape "$project")$"
-task_regex="^$(regex_escape "$task_id")$"
 
-if ! (cd "$repo" && "$moon_bin" query tasks --affected --project "$project_regex" --id "$task_regex" < "$evidence_dir/changed-files.json") >"$evidence_dir/affected-tasks.json" 2>"$evidence_dir/affected-tasks-error.log"; then
+# Moon owns both the affected decision and graph traversal. First let Moon build
+# the complete affected set and propagate it to all deep downstream dependents.
+# Only after Moon has resolved that graph do we check exact membership of the
+# requested target in the returned tasks object.
+if ! (cd "$repo" && "$moon_bin" query tasks --affected --downstream deep < "$evidence_dir/changed-files.json") >"$evidence_dir/affected-tasks.json" 2>"$evidence_dir/affected-tasks-error.log"; then
   conservative_true "moon-affected-task-query-failed" "$moon_version"
 fi
 
-if grep -Fq "\"$task_id\"" "$evidence_dir/affected-tasks.json"; then
-  write_decision true success task-affected "$moon_version"
+if task_is_in_query_result "$evidence_dir/affected-tasks.json" "$project" "$task_id"; then
+  write_decision true success target-or-upstream-affected "$moon_version"
   printf 'true\n'
 else
-  write_decision false success task-unaffected "$moon_version"
+  write_decision false success target-and-upstream-unaffected "$moon_version"
   printf 'false\n'
 fi

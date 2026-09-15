@@ -8,3 +8,13 @@ tasks:
       - 'fixture/moon/out'
     options:
       cache: true
+
+  cache.aggregate:
+    script: ':'
+    deps:
+      - 'cache.fixture'
+    inputs:
+      - 'moon.yml'
+      - '.moon/workspace.yml'
+    options:
+      cache: false

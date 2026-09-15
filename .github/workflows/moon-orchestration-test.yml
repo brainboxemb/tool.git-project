@@ -89,15 +89,19 @@ jobs:
           head: ${{ github.event.pull_request.head.sha }}
           evidence-directory: .moon/preflight/action
 
-      - name: Verify affected composite action output
+      - name: Verify affected composite action packaging
         if: github.event_name == 'pull_request'
         shell: bash
         env:
           AFFECTED: ${{ steps.affected.outputs.affected }}
         run: |
           set -euo pipefail
-          test "$AFFECTED" = false
-          test -f .moon/preflight/action/decision.json
+          case "$AFFECTED" in
+            true|false) ;;
+            *) echo "Unexpected affected output: $AFFECTED" >&2; exit 1 ;;
+          esac
+          test -s .moon/preflight/action/decision.json
+          grep -F '"status": "success"' .moon/preflight/action/decision.json >/dev/null
 
       - name: Invoke local production composite action
         uses: ./moon

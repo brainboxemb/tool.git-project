@@ -103,11 +103,12 @@ try {
     if ($LASTEXITCODE -ne 0) { Return-Conservative 'moon-changed-files-query-failed' $moonVersion }
 
     $project, $taskId = $Task.Split(':', 2)
-    $projectRegex = '^' + [regex]::Escape($project) + '$'
-    $taskRegex = '^' + [regex]::Escape($taskId) + '$'
     $changedJson = Get-Content -LiteralPath (Join-Path $EvidenceDir 'changed-files.json') -Raw
 
-    $changedJson | & $moon query tasks --affected --project $projectRegex --id $taskRegex 1> (Join-Path $EvidenceDir 'affected-tasks.json') 2> (Join-Path $EvidenceDir 'affected-tasks-error.log')
+    # Moon owns both affected selection and graph traversal. First build the
+    # complete affected set and propagate it to all deep downstream dependents;
+    # exact target membership is checked only after Moon resolves that graph.
+    $changedJson | & $moon query tasks --affected --downstream deep 1> (Join-Path $EvidenceDir 'affected-tasks.json') 2> (Join-Path $EvidenceDir 'affected-tasks-error.log')
     if ($LASTEXITCODE -ne 0) { Return-Conservative 'moon-affected-task-query-failed' $moonVersion }
 }
 finally {
@@ -124,10 +125,10 @@ catch {
 }
 
 if ($affected) {
-    Write-Decision -Affected $true -Status 'success' -Reason 'task-affected' -MoonVersion $moonVersion
+    Write-Decision -Affected $true -Status 'success' -Reason 'target-or-upstream-affected' -MoonVersion $moonVersion
     Write-Output 'true'
 }
 else {
-    Write-Decision -Affected $false -Status 'success' -Reason 'task-unaffected' -MoonVersion $moonVersion
+    Write-Decision -Affected $false -Status 'success' -Reason 'target-and-upstream-unaffected' -MoonVersion $moonVersion
     Write-Output 'false'
 }
