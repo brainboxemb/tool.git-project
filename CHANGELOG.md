@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Reusable `generated-output/publish` composite action for publishing an already prepared generated-output tree directly from the current host job on Linux or Windows.
+- POSIX shell and PowerShell publisher entrypoints with the existing `dev/pr-N/<suffix>`, `prod/<suffix>`, and `rel/vX.Y.Z/<suffix>` branch contract.
+- Direct same-job regression coverage for sequential publications, caller-worktree preservation, stale-source suppression, invalid/empty input rejection, Linux contract behavior, and native Windows publication.
+
+### Changed
+
+- The artifact-based `reusable-generated-output-publish.yml` workflow now checks out its own exact workflow revision and delegates branch materialization to the same composite publisher used by same-job callers.
+- Generated-output staging now happens in a temporary Git repository rather than switching/cleaning the caller worktree, allowing multiple output families to publish sequentially in one job.
+- Source freshness is still checked before staging and immediately before force-push; direct same-job callers own job-level serialization while the artifact-based wrapper retains its concurrency group.
+
 ## 0.2.6 — 2026-09-14
 
 ### Fixed
