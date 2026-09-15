@@ -1,0 +1,64 @@
+name: Generated output publish
+description: Publish one prepared generated-output tree to the safe branch derived from the current GitHub source context.
+
+inputs:
+  source-directory:
+    description: Prepared non-empty output tree to publish.
+    required: true
+  branch-suffix:
+    description: Single validated suffix below dev/pr-N, prod, or rel/vX.Y.Z.
+    required: true
+  source-revision:
+    description: Optional exact source commit. Defaults to the current PR head, main commit, or release-tag commit.
+    required: false
+    default: ''
+  token:
+    description: GitHub token with contents:write permission for the caller repository.
+    required: true
+
+outputs:
+  target-branch:
+    description: Derived generated-output branch.
+    value: ${{ steps.linux.outputs.target_branch || steps.windows.outputs.target_branch }}
+  source-revision:
+    description: Exact source revision associated with the publication.
+    value: ${{ steps.linux.outputs.source_revision || steps.windows.outputs.source_revision }}
+  published:
+    description: true when a branch was pushed; false when a stale source was safely skipped.
+    value: ${{ steps.linux.outputs.published || steps.windows.outputs.published }}
+  reason:
+    description: published, stale-before-staging, or stale-before-push.
+    value: ${{ steps.linux.outputs.reason || steps.windows.outputs.reason }}
+
+runs:
+  using: composite
+  steps:
+    - name: Publish generated output on POSIX
+      id: linux
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        PUBLISH_SOURCE_DIR: ${{ inputs.source-directory }}
+        PUBLISH_BRANCH_SUFFIX: ${{ inputs.branch-suffix }}
+        PUBLISH_SOURCE_REVISION: ${{ inputs.source-revision }}
+        PUBLISH_TOKEN: ${{ inputs.token }}
+        PUBLISH_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+        PUBLISH_PR_HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+        PUBLISH_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        PUBLISH_PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
+      run: bash "$GITHUB_ACTION_PATH/../../generated-output-publish.sh"
+
+    - name: Publish generated output on Windows
+      id: windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        PUBLISH_SOURCE_DIR: ${{ inputs.source-directory }}
+        PUBLISH_BRANCH_SUFFIX: ${{ inputs.branch-suffix }}
+        PUBLISH_SOURCE_REVISION: ${{ inputs.source-revision }}
+        PUBLISH_TOKEN: ${{ inputs.token }}
+        PUBLISH_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+        PUBLISH_PR_HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+        PUBLISH_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        PUBLISH_PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
+      run: '& (Join-Path $env:GITHUB_ACTION_PATH "..\..\generated-output-publish.ps1")'
