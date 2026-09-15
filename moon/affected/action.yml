@@ -24,6 +24,9 @@ outputs:
   affected:
     description: true when the target or an upstream dependency is affected, or when the preflight must fail conservative; false when Moon proves the target execution scope unaffected.
     value: ${{ steps.linux.outputs.affected || steps.windows.outputs.affected }}
+  affected-tasks:
+    description: Compact JSON array of fully-qualified affected Moon task IDs from the same query. Empty when none are affected or when the query falls back conservatively; inspect decision.json status to distinguish those cases.
+    value: ${{ steps.linux.outputs.affected-tasks || steps.windows.outputs.affected-tasks }}
   evidence-directory:
     description: Configured evidence directory.
     value: ${{ inputs.evidence-directory }}
@@ -52,7 +55,19 @@ runs:
         set -euo pipefail
         result="$(bash "$GITHUB_ACTION_PATH/../../moon-affected.sh" "$MOON_TASK" --repo "$MOON_REPO" --base "$MOON_BASE_REV" --head "$MOON_HEAD_REV" --install-root "$MOON_INSTALL_ROOT" --evidence-dir "$MOON_EVIDENCE_DIR")"
         test "$result" = true -o "$result" = false
+
+        evidence_dir="$MOON_EVIDENCE_DIR"
+        if [[ "$evidence_dir" != /* ]]; then
+          evidence_dir="$MOON_REPO/$evidence_dir"
+        fi
+        affected_tasks="$(tr -d '\r\n' < "$evidence_dir/affected-task-ids.json")"
+        case "$affected_tasks" in
+          \[*\]) ;;
+          *) echo "Unexpected affected task list: $affected_tasks" >&2; exit 1 ;;
+        esac
+
         echo "affected=$result" >> "$GITHUB_OUTPUT"
+        echo "affected-tasks=$affected_tasks" >> "$GITHUB_OUTPUT"
 
     - name: Query affected target on Windows
       id: windows
@@ -69,4 +84,15 @@ runs:
         $script = Join-Path $env:GITHUB_ACTION_PATH '..\..\moon-affected.ps1'
         $result = (& $script $env:MOON_TASK -Repo $env:MOON_REPO -Base $env:MOON_BASE_REV -Head $env:MOON_HEAD_REV -InstallRoot $env:MOON_INSTALL_ROOT -EvidenceDir $env:MOON_EVIDENCE_DIR | Select-Object -Last 1).Trim()
         if ($result -ne 'true' -and $result -ne 'false') { throw "Unexpected affected result: $result" }
+
+        if ([System.IO.Path]::IsPathRooted($env:MOON_EVIDENCE_DIR)) {
+          $evidenceDir = $env:MOON_EVIDENCE_DIR
+        }
+        else {
+          $evidenceDir = Join-Path $env:MOON_REPO $env:MOON_EVIDENCE_DIR
+        }
+        $affectedTasks = (Get-Content -LiteralPath (Join-Path $evidenceDir 'affected-task-ids.json') -Raw).Trim()
+        if (-not ($affectedTasks.StartsWith('[') -and $affectedTasks.EndsWith(']'))) { throw "Unexpected affected task list: $affectedTasks" }
+
         "affected=$result" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        "affected-tasks=$affectedTasks" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append

@@ -94,13 +94,20 @@ jobs:
         shell: bash
         env:
           AFFECTED: ${{ steps.affected.outputs.affected }}
+          AFFECTED_TASKS: ${{ steps.affected.outputs.affected-tasks }}
         run: |
           set -euo pipefail
           case "$AFFECTED" in
             true|false) ;;
             *) echo "Unexpected affected output: $AFFECTED" >&2; exit 1 ;;
           esac
+          case "$AFFECTED_TASKS" in
+            \[*\]) ;;
+            *) echo "Unexpected affected-tasks output: $AFFECTED_TASKS" >&2; exit 1 ;;
+          esac
           test -s .moon/preflight/action/decision.json
+          test -s .moon/preflight/action/affected-task-ids.json
+          test "$(tr -d '\r\n' < .moon/preflight/action/affected-task-ids.json)" = "$AFFECTED_TASKS"
           grep -F '"status": "success"' .moon/preflight/action/decision.json >/dev/null
 
       - name: Invoke local production composite action
