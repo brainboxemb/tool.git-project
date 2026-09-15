@@ -41,15 +41,15 @@ $serverHost = ([Uri]$serverUrl).Host
 
 function Invoke-GitCredentialed([string[]]$GitArgs) {
   $allArgs = @('-c', "credential.helper=store --file=$credentialFile") + $GitArgs
-  return (Invoke-GitChecked $allArgs)
+  return (Invoke-GitChecked -GitArgs $allArgs)
 }
 function Get-RemoteRef([string]$Ref) {
-  $lines = Invoke-GitCredentialed @('ls-remote', $remoteUrl, $Ref)
+  $lines = Invoke-GitCredentialed -GitArgs @('ls-remote', $remoteUrl, $Ref)
   if (-not $lines) { return '' }
   return (($lines[0] -split '\s+')[0]).Trim()
 }
 function Resolve-TagCommit([string]$Tag) {
-  $lines = Invoke-GitCredentialed @('ls-remote', $remoteUrl, "refs/tags/$Tag", "refs/tags/$Tag^{}")
+  $lines = Invoke-GitCredentialed -GitArgs @('ls-remote', $remoteUrl, "refs/tags/$Tag", "refs/tags/$Tag^{}")
   $peeled = ''
   $direct = ''
   foreach ($line in $lines) {
@@ -117,19 +117,19 @@ try {
     return
   }
 
-  Invoke-GitChecked @('-C', $publishRepo, 'init', '-q') | Out-Null
-  Invoke-GitChecked @('-C', $publishRepo, 'config', 'user.name', 'github-actions[bot]') | Out-Null
-  Invoke-GitChecked @('-C', $publishRepo, 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com') | Out-Null
-  Invoke-GitChecked @('-C', $publishRepo, 'config', 'credential.helper', "store --file=$credentialFile") | Out-Null
-  Invoke-GitChecked @('-C', $publishRepo, 'remote', 'add', 'origin', $remoteUrl) | Out-Null
-  Invoke-GitChecked @('-C', $publishRepo, 'switch', '--orphan', 'generated-output-publication') | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'init', '-q') | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'config', 'user.name', 'github-actions[bot]') | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com') | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'config', 'credential.helper', "store --file=$credentialFile") | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'remote', 'add', 'origin', $remoteUrl) | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'switch', '--orphan', 'generated-output-publication') | Out-Null
   Get-ChildItem -LiteralPath $sourceDir -Force | Copy-Item -Destination $publishRepo -Recurse -Force
-  Invoke-GitChecked @('-C', $publishRepo, 'add', '-A') | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'add', '-A') | Out-Null
   & git -C $publishRepo diff --cached --quiet
   $diffCode = $LASTEXITCODE
   if ($diffCode -eq 0) { Fail 'prepared generated-output tree produced no publishable files' }
   if ($diffCode -ne 1) { Fail "git diff --cached failed with exit code $diffCode" }
-  Invoke-GitChecked @('-C', $publishRepo, 'commit', '-q', '-m', "Publish generated output to $targetBranch") | Out-Null
+  Invoke-GitChecked -GitArgs @('-C', $publishRepo, 'commit', '-q', '-m', "Publish generated output to $targetBranch") | Out-Null
 
   if ($env:PUBLISH_BEFORE_PUSH_DELAY_SECONDS -and $env:PUBLISH_BEFORE_PUSH_DELAY_SECONDS -ne '0') {
     Start-Sleep -Seconds ([double]$env:PUBLISH_BEFORE_PUSH_DELAY_SECONDS)
@@ -143,7 +143,7 @@ try {
     return
   }
 
-  Invoke-GitCredentialed @('-C', $publishRepo, 'push', '--force', 'origin', "HEAD:refs/heads/$targetBranch") | Out-Null
+  Invoke-GitCredentialed -GitArgs @('-C', $publishRepo, 'push', '--force', 'origin', "HEAD:refs/heads/$targetBranch") | Out-Null
   Write-Host "Published generated output from $sourceRevision to $targetBranch"
   Write-ActionOutput 'published' 'true'
   Write-ActionOutput 'reason' 'published'
