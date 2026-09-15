@@ -25,6 +25,17 @@ assert_decision() {
   grep -F "\"status\": \"$expected_status\"" "$evidence/decision.json" >/dev/null
 }
 
+assert_task_ids() {
+  local evidence="$1" expected="$2" actual
+  actual="$(tr -d '\r\n' < "$evidence/affected-task-ids.json")"
+  [[ "$actual" == "$expected" ]] || {
+    echo "Unexpected affected task list in $evidence" >&2
+    echo "expected: $expected" >&2
+    echo "actual:   $actual" >&2
+    exit 1
+  }
+}
+
 cd "$ROOT"
 git clone --quiet --no-hardlinks "$ROOT" "$REPO"
 git -C "$REPO" config user.email 'moon-affected-test@example.invalid'
@@ -45,12 +56,14 @@ docs_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REPO
 [[ "$docs_result" == "false" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$docs_evidence" false success
+assert_task_ids "$docs_evidence" '[]'
 
 aggregate_docs_evidence="$REPO/.moon/preflight/aggregate-docs"
 aggregate_docs_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.aggregate --repo "$REPO" --base "$base_revision" --head "$docs_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$aggregate_docs_evidence")"
 [[ "$aggregate_docs_result" == "false" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$aggregate_docs_evidence" false success
+assert_task_ids "$aggregate_docs_evidence" '[]'
 
 printf '\nrelevant committed preflight change\n' >> "$REPO/fixture/moon/input.txt"
 git -C "$REPO" add fixture/moon/input.txt
@@ -62,21 +75,36 @@ input_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REP
 [[ "$input_result" == "true" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$input_evidence" true success
+assert_task_ids "$input_evidence" '["fixture:cache.aggregate","fixture:cache.fixture"]'
 
 aggregate_evidence="$REPO/.moon/preflight/aggregate"
 aggregate_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.aggregate --repo "$REPO" --base "$docs_revision" --head "$input_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$aggregate_evidence")"
 [[ "$aggregate_result" == "true" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$aggregate_evidence" true success
+assert_task_ids "$aggregate_evidence" '["fixture:cache.aggregate","fixture:cache.fixture"]'
 grep -F '"fixture:cache.aggregate": {' "$aggregate_evidence/affected-tasks.json" >/dev/null
 grep -F '"upstream": [' "$aggregate_evidence/affected-tasks.json" >/dev/null
 grep -F '"fixture:cache.fixture"' "$aggregate_evidence/affected-tasks.json" >/dev/null
 
+printf '\none independent affected task\n' >> "$REPO/fixture/moon/independent.txt"
+git -C "$REPO" add fixture/moon/independent.txt
+git -C "$REPO" commit --quiet -m 'Test one affected task decision'
+independent_revision="$(git -C "$REPO" rev-parse HEAD)"
+
+independent_evidence="$REPO/.moon/preflight/independent"
+independent_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.independent --repo "$REPO" --base "$input_revision" --head "$independent_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$independent_evidence")"
+[[ "$independent_result" == "true" ]]
+[[ "$(count_executions "$REPO")" == "0" ]]
+assert_decision "$independent_evidence" true success
+assert_task_ids "$independent_evidence" '["fixture:cache.independent"]'
+
 conservative_evidence="$REPO/.moon/preflight/conservative"
-conservative_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REPO" --base 'refs/heads/does-not-exist' --head "$input_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$conservative_evidence")"
+conservative_result="$(bash "$ROOT/moon-affected.sh" fixture:cache.fixture --repo "$REPO" --base 'refs/heads/does-not-exist' --head "$independent_revision" --install-root "$INSTALL_ROOT" --evidence-dir "$conservative_evidence")"
 [[ "$conservative_result" == "true" ]]
 [[ "$(count_executions "$REPO")" == "0" ]]
 assert_decision "$conservative_evidence" true conservative
+assert_task_ids "$conservative_evidence" '[]'
 
 mkdir -p "$RESULTS"
 cat > "$RESULTS/linux-affected.json" <<EOF
@@ -85,11 +113,15 @@ cat > "$RESULTS/linux-affected.json" <<EOF
   "moon_version": "2.5.4",
   "checks": {
     "readme_only_unaffected": true,
+    "zero_affected_task_list": true,
+    "one_affected_task_list": true,
+    "multiple_affected_task_list": true,
     "task_input_affected": true,
     "aggregate_upstream_affected": true,
     "aggregate_readme_only_unaffected": true,
     "query_does_not_execute_producer": true,
     "missing_revision_fails_conservative": true,
+    "conservative_task_list_empty": true,
     "explicit_base_head": true,
     "moon_graph_propagation": true
   }

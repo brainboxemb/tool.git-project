@@ -18,3 +18,10 @@ tasks:
       - '.moon/workspace.yml'
     options:
       cache: false
+
+  cache.independent:
+    script: ':'
+    inputs:
+      - 'fixture/moon/independent.txt'
+    options:
+      cache: false

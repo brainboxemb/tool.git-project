@@ -49,6 +49,22 @@ function Return-Conservative([string]$Reason, [string]$MoonVersion = 'unknown') 
     exit 0
 }
 
+function Get-AffectedTaskIds([object]$AffectedQuery) {
+    if ($null -eq $AffectedQuery.tasks) {
+        throw 'Moon affected-task result does not contain a tasks object.'
+    }
+
+    $ids = [System.Collections.Generic.List[string]]::new()
+    foreach ($projectProperty in $AffectedQuery.tasks.PSObject.Properties) {
+        if ($null -eq $projectProperty.Value) { continue }
+        foreach ($taskProperty in $projectProperty.Value.PSObject.Properties) {
+            $ids.Add("$($projectProperty.Name):$($taskProperty.Name)")
+        }
+    }
+
+    return @($ids | Sort-Object -Unique)
+}
+
 if ($Task -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*:[A-Za-z0-9][A-Za-z0-9._-]*$') {
     throw "Affected preflight requires a fully-qualified Moon task target: $Task"
 }
@@ -60,6 +76,7 @@ if (-not [System.IO.Path]::IsPathRooted($EvidenceDir)) {
 New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
 Set-Content -LiteralPath (Join-Path $EvidenceDir 'changed-files.json') -Value '' -Encoding utf8
 Set-Content -LiteralPath (Join-Path $EvidenceDir 'affected-tasks.json') -Value '' -Encoding utf8
+Set-Content -LiteralPath (Join-Path $EvidenceDir 'affected-task-ids.json') -Value '[]' -Encoding utf8
 
 & git -C $Repository rev-parse --verify --quiet "${Base}^{commit}" *> $null
 if ($LASTEXITCODE -ne 0) { Return-Conservative "base-revision-not-found:$Base" }
@@ -102,12 +119,11 @@ try {
     & $moon query changed-files --base $Base --head $Head 1> (Join-Path $EvidenceDir 'changed-files.json') 2> (Join-Path $EvidenceDir 'changed-files-error.log')
     if ($LASTEXITCODE -ne 0) { Return-Conservative 'moon-changed-files-query-failed' $moonVersion }
 
-    $project, $taskId = $Task.Split(':', 2)
     $changedJson = Get-Content -LiteralPath (Join-Path $EvidenceDir 'changed-files.json') -Raw
 
     # Moon owns both affected selection and graph traversal. First build the
     # complete affected set and propagate it to all deep downstream dependents;
-    # exact target membership is checked only after Moon resolves that graph.
+    # normalize the complete task list only after Moon resolves that graph.
     $changedJson | & $moon query tasks --affected --downstream deep 1> (Join-Path $EvidenceDir 'affected-tasks.json') 2> (Join-Path $EvidenceDir 'affected-tasks-error.log')
     if ($LASTEXITCODE -ne 0) { Return-Conservative 'moon-affected-task-query-failed' $moonVersion }
 }
@@ -117,10 +133,12 @@ finally {
 
 try {
     $affectedQuery = Get-Content -LiteralPath (Join-Path $EvidenceDir 'affected-tasks.json') -Raw | ConvertFrom-Json
-    $projectTasks = $affectedQuery.tasks.$project
-    $affected = $null -ne $projectTasks -and $null -ne $projectTasks.$taskId
+    $affectedTaskIds = @(Get-AffectedTaskIds $affectedQuery)
+    ConvertTo-Json -InputObject $affectedTaskIds -Compress | Set-Content -LiteralPath (Join-Path $EvidenceDir 'affected-task-ids.json') -Encoding utf8
+    $affected = $affectedTaskIds -contains $Task
 }
 catch {
+    Set-Content -LiteralPath (Join-Path $EvidenceDir 'affected-task-ids.json') -Value '[]' -Encoding utf8
     Return-Conservative 'moon-affected-task-result-invalid' $moonVersion
 }
 
