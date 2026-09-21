@@ -332,6 +332,176 @@ function Show-Status {
     }
 }
 
+
+function Normalize-RepositoryUrl {
+    param([string] $Url)
+    $Value = $Url.Trim().TrimEnd('/')
+    if ($Value.EndsWith('.git')) { $Value = $Value.Substring(0, $Value.Length - 4) }
+    if ($Value -match '^git@github\.com:(.+)
+$Root = Resolve-RepoRoot -Requested $RepoRoot
+$Model = Read-ProjectModel -Root $Root
+
+switch ($Command) {
+    "validate" {
+        Write-Host "project.yml valid: $($Model.ProjectName) ($($Model.Dependencies.Count) dependencies, $($Model.Profiles.Count) profiles)"
+    }
+    "status" {
+        Show-Status -Root $Root -Model $Model
+    }
+    "bootstrap" {
+        foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Bootstrapping" }
+        Initialize-RootExternalClosure -Root $Root -Model $Model
+        Write-Host ""
+        Show-Status -Root $Root -Model $Model
+        Write-Host ""
+        Write-Host "Bootstrap complete. Review parent changes with: git status"
+    }
+    "update" {
+        foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Updating" }
+        Initialize-RootExternalClosure -Root $Root -Model $Model
+        Write-Host ""
+        Show-Status -Root $Root -Model $Model
+        Write-Host ""
+        Write-Host "Update complete. Review project.yml and gitlink changes before committing."
+    }
+}
+) { $Value = "https://github.com/$($Matches[1])" }
+    return $Value
+}
+
+function Get-GitlinkCommit {
+    param([string] $Owner, [string] $Path)
+    $Result = Invoke-Git -WorkingDirectory $Owner -Args @("ls-files", "--stage", "--", $Path) -Capture -AllowFailure
+    $Text = $Result.Output -join "`n"
+    if ($Result.Code -eq 0 -and $Text -match '^160000\s+([0-9a-fA-F]{40})\s+') {
+        return $Matches[1]
+    }
+    return $null
+}
+
+function Assert-NestedRefConsistency {
+    param([string] $FullPath, [string] $Ref, [string] $Gitlink)
+
+    Invoke-Git -WorkingDirectory $FullPath -Args @("fetch", "origin", "--prune", "--tags") | Out-Null
+
+    if ($Ref -match '^[0-9a-fA-F]{40}
+$Root = Resolve-RepoRoot -Requested $RepoRoot
+$Model = Read-ProjectModel -Root $Root
+
+switch ($Command) {
+    "validate" {
+        Write-Host "project.yml valid: $($Model.ProjectName) ($($Model.Dependencies.Count) dependencies, $($Model.Profiles.Count) profiles)"
+    }
+    "status" {
+        Show-Status -Root $Root -Model $Model
+    }
+    "bootstrap" {
+        foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Bootstrapping" }
+        Write-Host ""
+        Show-Status -Root $Root -Model $Model
+        Write-Host ""
+        Write-Host "Bootstrap complete. Review parent changes with: git status"
+    }
+    "update" {
+        foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Updating" }
+        Write-Host ""
+        Show-Status -Root $Root -Model $Model
+        Write-Host ""
+        Write-Host "Update complete. Review project.yml and gitlink changes before committing."
+    }
+}
+) {
+        if ($Ref -ne $Gitlink) {
+            throw "Nested dependency ref $Ref does not match committed gitlink $Gitlink at $FullPath."
+        }
+        return
+    }
+
+    $Tag = Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "--verify", "refs/tags/$Ref^{commit}") -Capture -AllowFailure
+    if ($Tag.Code -eq 0) {
+        $Resolved = ($Tag.Output | Select-Object -First 1).Trim()
+        if ($Resolved -ne $Gitlink) {
+            throw "Nested dependency tag $Ref resolves to $Resolved but owner gitlink is $Gitlink at $FullPath."
+        }
+        return
+    }
+
+    $Branch = Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "--verify", "origin/$Ref^{commit}") -Capture -AllowFailure
+    if ($Branch.Code -ne 0) {
+        throw "Unable to resolve nested dependency ref '$Ref' at $FullPath."
+    }
+    # Moving branches are validated for existence only. The owner's committed
+    # gitlink remains authoritative to the consumer.
+}
+
+function Initialize-ExternalClosure {
+    param([string] $Owner, [string[]] $Lineage)
+
+    $OwnerModel = Read-ProjectModel -Root $Owner
+    foreach ($Dependency in $OwnerModel.Dependencies) {
+        if ($Dependency.Role -ne "external") { continue }
+        if ($Dependency.Type -ne "git-submodule") {
+            throw "Unsupported transitive external dependency type '$($Dependency.Type)' for $($Dependency.Name)."
+        }
+
+        $Normalized = Normalize-RepositoryUrl $Dependency.Url
+        if ($Lineage -contains $Normalized) {
+            throw "Dependency cycle detected through $($Dependency.Url) while walking $Owner."
+        }
+
+        $Gitlink = Get-GitlinkCommit -Owner $Owner -Path $Dependency.Path
+        if (-not $Gitlink) {
+            throw "External dependency '$($Dependency.Name)' is not a committed gitlink at $Owner/$($Dependency.Path)."
+        }
+
+        $SubmoduleName = Get-SubmoduleName -Root $Owner -Path $Dependency.Path
+        if (-not $SubmoduleName) {
+            throw "No .gitmodules entry found for $Owner/$($Dependency.Path)."
+        }
+        $Configured = Invoke-Git -WorkingDirectory $Owner -Args @("config", "-f", ".gitmodules", "--get", "submodule.$SubmoduleName.url") -Capture -AllowFailure
+        $ConfiguredUrl = if ($Configured.Code -eq 0) { ($Configured.Output | Select-Object -First 1).Trim() } else { "" }
+        if ((Normalize-RepositoryUrl $ConfiguredUrl) -ne $Normalized) {
+            throw "URL mismatch for $Owner/$($Dependency.Path): project.yml=$($Dependency.Url) .gitmodules=$ConfiguredUrl"
+        }
+
+        Invoke-Git -WorkingDirectory $Owner -Args @("submodule", "sync", "--", $Dependency.Path) | Out-Null
+        Invoke-Git -WorkingDirectory $Owner -Args @("submodule", "update", "--init", "--", $Dependency.Path) | Out-Null
+
+        $FullPath = Join-Path $Owner $Dependency.Path
+        if (-not (Test-DependencyRepoInitialized -FullPath $FullPath)) {
+            throw "Unable to initialize transitive external dependency '$($Dependency.Name)' at $FullPath."
+        }
+        Assert-CleanDependency -FullPath $FullPath -Name $Dependency.Name
+
+        $Current = ((Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "HEAD") -Capture).Output | Select-Object -First 1).Trim()
+        if ($Current -ne $Gitlink) {
+            throw "Nested dependency '$($Dependency.Name)' checked out $Current but owner gitlink requires $Gitlink."
+        }
+
+        Assert-NestedRefConsistency -FullPath $FullPath -Ref $Dependency.Ref -Gitlink $Gitlink
+        Write-Host "external $($Dependency.Name) owner=$Owner path=$($Dependency.Path) current=$($Current.Substring(0, 12)) ref=$($Dependency.Ref)"
+
+        Initialize-ExternalClosure -Owner $FullPath -Lineage @($Lineage + $Normalized)
+    }
+}
+
+function Initialize-RootExternalClosure {
+    param([string] $Root, $Model)
+
+    $RootUrlResult = Invoke-Git -WorkingDirectory $Root -Args @("remote", "get-url", "origin") -Capture -AllowFailure
+    $RootLineage = @()
+    if ($RootUrlResult.Code -eq 0 -and $RootUrlResult.Output) {
+        $RootLineage += Normalize-RepositoryUrl (($RootUrlResult.Output | Select-Object -First 1).Trim())
+    }
+
+    foreach ($Dependency in $Model.Dependencies) {
+        if ($Dependency.Role -ne "external") { continue }
+        $FullPath = Join-Path $Root $Dependency.Path
+        $Lineage = @($RootLineage + (Normalize-RepositoryUrl $Dependency.Url))
+        Initialize-ExternalClosure -Owner $FullPath -Lineage $Lineage
+    }
+}
+
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git was not found in PATH." }
 
 $Root = Resolve-RepoRoot -Requested $RepoRoot

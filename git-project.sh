@@ -257,11 +257,235 @@ show_status() {
   done
 }
 
+
+normalize_repo_url() {
+  local value="$1"
+  value="${value%/}"
+  value="${value%.git}"
+  if [[ "$value" =~ ^git@github\.com:(.+)$ ]]; then
+    value="https://github.com/${BASH_REMATCH[1]}"
+  fi
+  printf '%s' "$value"
+}
+
+nested_external_rows() {
+  local owner="$1" project="$owner/project.yml"
+  [[ -f "$project" ]] || return 0
+
+  # Reuse the generic parser for complete owner validation before extracting
+  # only the external dependency rows needed for traversal.
+  bash "$0" validate --repo "$owner" >/dev/null
+
+  awk '
+  function clean(value, first, last) {
+    sub(/^[[:space:]]+/, "", value)
+    sub(/[[:space:]]+$/, "", value)
+    first = substr(value, 1, 1)
+    last = substr(value, length(value), 1)
+    if (length(value) >= 2 && ((first == "\"" && last == "\"") || (first == "\047" && last == "\047"))) {
+      value = substr(value, 2, length(value) - 2)
+    }
+    return value
+  }
+  function reset_current() {
+    name = role = type = url = path = ref = ""
+  }
+  function emit_current() {
+    if (name != "" && role == "external") {
+      print name "|" type "|" url "|" path "|" ref
+    }
+    reset_current()
+  }
+  BEGIN { in_dependencies = 0; reset_current() }
+  /^[^ ]/ {
+    if ($0 ~ /^dependencies:[[:space:]]*$/) {
+      if (in_dependencies) emit_current()
+      in_dependencies = 1
+      next
+    }
+    if (in_dependencies) {
+      emit_current()
+      in_dependencies = 0
+    }
+  }
+  in_dependencies && /^  - name:/ {
+    emit_current()
+    name = clean(substr($0, index($0, ":") + 1))
+    next
+  }
+  in_dependencies && /^    role:/ { role = clean(substr($0, index($0, ":") + 1)); next }
+  in_dependencies && /^    type:/ { type = clean(substr($0, index($0, ":") + 1)); next }
+  in_dependencies && /^    url:/  { url  = clean(substr($0, index($0, ":") + 1)); next }
+  in_dependencies && /^    path:/ { path = clean(substr($0, index($0, ":") + 1)); next }
+  in_dependencies && /^    ref:/  { ref  = clean(substr($0, index($0, ":") + 1)); next }
+  END { if (in_dependencies) emit_current() }
+  ' "$project"
+}
+
+owner_submodule_name_for_path() {
+  local owner="$1" path="$2" line key value
+  [[ -f "$owner/.gitmodules" ]] || return 1
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    key="${line%%[[:space:]]*}"
+    value="${line#${key}}"
+    value="${value#${value%%[![:space:]]*}}"
+    if [[ "$value" == "$path" ]]; then
+      key="${key#submodule.}"
+      key="${key%.path}"
+      printf '%s' "$key"
+      return 0
+    fi
+  done < <(git -C "$owner" config -f .gitmodules --get-regexp '^submodule\..*\.path
+echo
+show_status
+echo
+if [[ "$command_name" == "bootstrap" ]]; then
+  echo "Bootstrap complete. Review parent changes with: git status"
+else
+  echo "Update complete. Review project.yml and gitlink changes before committing."
+fi
+ 2>/dev/null || true)
+  return 1
+}
+
+nested_gitlink_commit() {
+  local owner="$1" path="$2" entry
+  entry="$(git -C "$owner" ls-files --stage -- "$path" 2>/dev/null || true)"
+  if [[ "$entry" =~ ^160000[[:space:]]([0-9a-fA-F]{40})[[:space:]] ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+validate_nested_ref() {
+  local full="$1" ref="$2" gitlink="$3" resolved
+  git -C "$full" fetch origin --prune --tags >/dev/null
+
+  if [[ "$ref" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    [[ "$ref" == "$gitlink" ]] || {
+      echo "Nested dependency ref $ref does not match committed gitlink $gitlink at $full." >&2
+      exit 1
+    }
+    return 0
+  fi
+
+  resolved="$(git -C "$full" rev-parse --verify "refs/tags/$ref^{commit}" 2>/dev/null || true)"
+  if [[ -n "$resolved" ]]; then
+    [[ "$resolved" == "$gitlink" ]] || {
+      echo "Nested dependency tag $ref resolves to $resolved but owner gitlink is $gitlink at $full." >&2
+      exit 1
+    }
+    return 0
+  fi
+
+  resolved="$(git -C "$full" rev-parse --verify "origin/$ref^{commit}" 2>/dev/null || true)"
+  [[ -n "$resolved" ]] || {
+    echo "Unable to resolve nested dependency ref '$ref' at $full." >&2
+    exit 1
+  }
+  # Moving branch refs are validated for existence only. The owner gitlink,
+  # not today's remote branch head, remains authoritative to a consumer.
+}
+
+walk_external_dependencies() {
+  local owner="$1" lineage="$2"
+  local name type url path ref normalized full gitlink sub_name configured_url current
+
+  while IFS='|' read -r name type url path ref; do
+    [[ -n "$name" ]] || continue
+    [[ "$type" == "git-submodule" ]] || {
+      echo "Unsupported transitive external dependency type '$type' for $name." >&2
+      exit 1
+    }
+
+    normalized="$(normalize_repo_url "$url")"
+    if printf '%s\n' "$lineage" | grep -Fqx "$normalized"; then
+      echo "Dependency cycle detected through $url while walking $owner." >&2
+      exit 1
+    fi
+
+    gitlink="$(nested_gitlink_commit "$owner" "$path" || true)"
+    [[ -n "$gitlink" ]] || {
+      echo "External dependency '$name' is not a committed gitlink at $owner/$path." >&2
+      exit 1
+    }
+
+    sub_name="$(owner_submodule_name_for_path "$owner" "$path" || true)"
+    [[ -n "$sub_name" ]] || {
+      echo "No .gitmodules entry found for $owner/$path." >&2
+      exit 1
+    }
+    configured_url="$(git -C "$owner" config -f .gitmodules --get "submodule.$sub_name.url" 2>/dev/null || true)"
+    [[ "$(normalize_repo_url "$configured_url")" == "$normalized" ]] || {
+      echo "URL mismatch for $owner/$path: project.yml=$url .gitmodules=$configured_url" >&2
+      exit 1
+    }
+
+    git -C "$owner" submodule sync -- "$path" >/dev/null
+    git -C "$owner" submodule update --init -- "$path" >/dev/null
+    full="$owner/$path"
+    dependency_repo_initialized "$full" || {
+      echo "Unable to initialize transitive external dependency '$name' at $full." >&2
+      exit 1
+    }
+    assert_clean "$full" "$name"
+
+    current="$(git -C "$full" rev-parse HEAD)"
+    [[ "$current" == "$gitlink" ]] || {
+      echo "Nested dependency '$name' checked out $current but owner gitlink requires $gitlink." >&2
+      exit 1
+    }
+    validate_nested_ref "$full" "$ref" "$gitlink"
+
+    echo "external $name owner=$owner path=$path current=${current:0:12} ref=$ref"
+    walk_external_dependencies "$full" "$lineage"
+echo
+show_status
+echo
+if [[ "$command_name" == "bootstrap" ]]; then
+  echo "Bootstrap complete. Review parent changes with: git status"
+else
+  echo "Update complete. Review project.yml and gitlink changes before committing."
+fi
+\n'"$normalized"
+  done < <(nested_external_rows "$owner")
+}
+
+walk_root_external_dependencies() {
+  local root_url="" lineage="" i full normalized
+  root_url="$(git -C "$repo_root" remote get-url origin 2>/dev/null || true)"
+  [[ -z "$root_url" ]] || lineage="$(normalize_repo_url "$root_url")"
+
+  for i in "${!dep_names[@]}"; do
+    [[ "${dep_roles[$i]}" == "external" ]] || continue
+    full="$repo_root/${dep_paths[$i]}"
+    normalized="$(normalize_repo_url "${dep_urls[$i]}")"
+    if [[ -n "$lineage" ]]; then
+      walk_external_dependencies "$full" "$lineage"
+echo
+show_status
+echo
+if [[ "$command_name" == "bootstrap" ]]; then
+  echo "Bootstrap complete. Review parent changes with: git status"
+else
+  echo "Update complete. Review project.yml and gitlink changes before committing."
+fi
+\n'"$normalized"
+    else
+      walk_external_dependencies "$full" "$normalized"
+    fi
+  done
+}
+
 if [[ "$command_name" == "status" ]]; then show_status; exit 0; fi
 
 for i in "${!dep_names[@]}"; do
   if [[ "$command_name" == "bootstrap" ]]; then sync_dependency "$i" "Bootstrapping"; else sync_dependency "$i" "Updating"; fi
 done
+
+walk_root_external_dependencies
 
 echo
 show_status
