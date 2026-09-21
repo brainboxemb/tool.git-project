@@ -10,6 +10,7 @@ root_util_ref="da1892a201c3bfc78a65e10df84d4a8d142ae8f6"
 nested_util_ref="5c88cd9b6b118d376825927ed67e26aff6eaee2d"
 
 cd "$repo"
+rm -f dirty-update.log transitive-dirty-update.log
 cat >> project.yml <<'EOF'
 
   - name: lib.scad.mechint
