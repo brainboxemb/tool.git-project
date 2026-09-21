@@ -60,6 +60,7 @@ try {
     try { .\update-repo.ps1 *> transitive-dirty-update.log } catch { $Blocked = $true }
     if (-not $Blocked) { throw "Update unexpectedly succeeded with dirty nested dependency." }
     git -C $NestedUtilPath checkout -- README.md
+    Remove-Item transitive-dirty-update.log -ErrorAction SilentlyContinue
     if ((git -C $RootUtilPath rev-parse HEAD).Trim() -ne $RootUtilRef) { throw "Root util changed during dirty protection." }
     if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util changed during dirty protection." }
 

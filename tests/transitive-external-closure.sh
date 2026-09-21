@@ -60,6 +60,7 @@ if ./update-repo.sh > transitive-dirty-update.log 2>&1; then
   exit 1
 fi
 git -C "$nested_util_path" checkout -- README.md
+rm -f transitive-dirty-update.log
 test "$(git -C "$root_util_path" rev-parse HEAD)" = "$root_util_ref"
 test "$(git -C "$nested_util_path" rev-parse HEAD)" = "$nested_util_ref"
 

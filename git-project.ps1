@@ -542,3 +542,7 @@ switch ($Command) {
         Write-Host "Update complete. Review project.yml and gitlink changes before committing."
     }
 }
+
+# Native commands used by read-only status may legitimately return non-zero
+# through AllowFailure. Reaching this point means the tool operation itself succeeded.
+exit 0
