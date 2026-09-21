@@ -91,6 +91,13 @@ jobs:
           grep -q "has local changes" dirty-update.log
           git -C tools/tool.java-project reset --hard HEAD
 
+      - name: Transitive external dependency contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/transitive-external-closure.sh "$FIXTURE_REPO"
+
+
   windows:
     runs-on: windows-2025
     timeout-minutes: 10
@@ -179,3 +186,6 @@ jobs:
           } finally {
             Pop-Location
           }
+      - name: Transitive external dependency contract
+        shell: pwsh
+        run: .\tests\transitive-external-closure.ps1 -RepoRoot $env:FIXTURE_REPO

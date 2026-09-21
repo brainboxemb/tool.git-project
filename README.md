@@ -105,11 +105,23 @@ The commands can also operate on another local repository, which is useful for C
 ### Command semantics
 
 - `validate` — parse and validate generic `project.yml`; verify referenced profile files exist.
-- `bootstrap` — register/repair declared managed submodules, initialise them, and align them to configured refs.
-- `status` — inspect local registration, current commit, configured ref, and dirty state without fetching from the network.
-- `update` — fetch managed dependencies and align their gitlinks to the refs currently requested by `project.yml`; dirty dependencies are refused.
+- `bootstrap` — register/repair declared direct submodules, align them to configured refs, then complete the controlled transitive closure of nested `role: external` git-submodule dependencies.
+- `status` — inspect direct state plus nested external owner/path/gitlink/current/dirty state without fetching from the network.
+- `update` — fetch and align root-owned direct dependencies, then restore/validate nested external dependencies at each consumed owner's committed gitlink; dirty dependencies are refused.
 
 After `bootstrap` or `update`, review parent-repository changes with `git status`. Dependency updates intentionally appear as normal reviewable gitlink changes.
+
+Generated root launchers also expose read-only full-closure status:
+
+```bash
+./update-repo.sh status
+```
+
+```powershell
+.\update-repo.ps1 status
+```
+
+A consumed repository's committed nested gitlink remains its exact dependency pin. Its `project.yml ref` is validated as owner metadata; the outer consumer does not advance that nested gitlink independently.
 
 ## Optional Moon orchestration
 
