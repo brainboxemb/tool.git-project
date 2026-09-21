@@ -447,7 +447,79 @@ walk_root_external_dependencies() {
   done
 }
 
-if [[ "$command_name" == "status" ]]; then show_status; exit 0; fi
+
+owner_relative_label() {
+  local owner="$1"
+  if [[ "$owner" == "$repo_root" ]]; then
+    printf '.'
+  else
+    printf '%s' "${owner#"$repo_root"/}"
+  fi
+}
+
+show_nested_external_status() {
+  local owner="$1" lineage="$2"
+  local name type url path ref normalized full gitlink current dirty state next_lineage
+
+  while IFS='|' read -r name type url path ref; do
+    [[ -n "$name" ]] || continue
+    normalized="$(normalize_repo_url "$url")"
+    if [[ ";${lineage};" == *";${normalized};"* ]]; then
+      printf 'nested %-24s CYCLE         owner=%s path=%s ref=%s\n' "$name" "$(owner_relative_label "$owner")" "$path" "$ref"
+      continue
+    fi
+
+    gitlink="$(nested_gitlink_commit "$owner" "$path" || true)"
+    if [[ -z "$gitlink" ]]; then
+      printf 'nested %-24s MISSING_GITLINK owner=%s path=%s ref=%s\n' "$name" "$(owner_relative_label "$owner")" "$path" "$ref"
+      continue
+    fi
+
+    full="$owner/$path"
+    if ! dependency_repo_initialized "$full"; then
+      printf 'nested %-24s UNINITIALIZED owner=%s path=%s gitlink=%s ref=%s\n' "$name" "$(owner_relative_label "$owner")" "$path" "${gitlink:0:12}" "$ref"
+      continue
+    fi
+
+    current="$(git -C "$full" rev-parse HEAD)"
+    dirty="$(git -C "$full" status --porcelain)"
+    if [[ -n "$dirty" ]]; then
+      state="DIRTY"
+    elif [[ "$current" == "$gitlink" ]]; then
+      state="OK"
+    else
+      state="DIFF"
+    fi
+
+    printf 'nested %-24s %-13s owner=%s path=%s current=%s gitlink=%s ref=%s\n' \
+      "$name" "$state" "$(owner_relative_label "$owner")" "$path" "${current:0:12}" "${gitlink:0:12}" "$ref"
+
+    if [[ -n "$lineage" ]]; then next_lineage="$lineage;$normalized"; else next_lineage="$normalized"; fi
+    show_nested_external_status "$full" "$next_lineage"
+  done < <(nested_external_rows "$owner")
+}
+
+show_root_external_status() {
+  local root_url="" root_lineage="" i full normalized lineage
+  root_url="$(git -C "$repo_root" remote get-url origin 2>/dev/null || true)"
+  [[ -z "$root_url" ]] || root_lineage="$(normalize_repo_url "$root_url")"
+
+  for i in "${!dep_names[@]}"; do
+    [[ "${dep_roles[$i]}" == "external" ]] || continue
+    full="$repo_root/${dep_paths[$i]}"
+    dependency_repo_initialized "$full" || continue
+    normalized="$(normalize_repo_url "${dep_urls[$i]}")"
+    if [[ -n "$root_lineage" ]]; then lineage="$root_lineage;$normalized"; else lineage="$normalized"; fi
+    show_nested_external_status "$full" "$lineage"
+  done
+}
+
+show_full_status() {
+  show_status
+  show_root_external_status
+}
+
+if [[ "$command_name" == "status" ]]; then show_full_status; exit 0; fi
 
 for i in "${!dep_names[@]}"; do
   if [[ "$command_name" == "bootstrap" ]]; then sync_dependency "$i" "Bootstrapping"; else sync_dependency "$i" "Updating"; fi
@@ -456,7 +528,7 @@ done
 walk_root_external_dependencies
 
 echo
-show_status
+show_full_status
 echo
 if [[ "$command_name" == "bootstrap" ]]; then
   echo "Bootstrap complete. Review parent changes with: git status"

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Controlled transitive traversal for owner-declared `role: external` Git submodules, including nested owner/path status through the normal update launcher on Linux and Windows.
+- Owner regression coverage using independent root/nested pins of the same repository, nested tooling exclusion, dirty protection, uninitialized recovery, and unrelated-local-path preservation.
+
+### Changed
+
+- Consumed repositories keep their committed nested gitlinks authoritative; configured nested refs are validated without allowing an outer consumer to advance the owner's pin independently.
+- `update-repo.sh` / `update-repo.ps1` now accept `status` for read-only direct plus nested closure reporting.
+
 ## 0.2.8 — 2026-09-15
 
 ### Added

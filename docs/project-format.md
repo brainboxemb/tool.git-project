@@ -86,7 +86,7 @@ Optional list of Git-managed dependencies **after the bootstrap engine is availa
 Each dependency contains:
 
 - `name` — unique logical dependency name;
-- `role` — generic purpose, normally `tooling` or `external`; other values are allowed because the Git layer does not own domain semantics;
+- `role` — generic purpose. Root dependencies of every role are managed directly. `external` additionally means the dependency participates in the controlled transitive Git closure when its owner is consumed; other roles are not recursively initialized;
 - `type` — initial implementation supports only `git-submodule`;
 - `url` — Git repository URL;
 - `path` — repository-relative submodule path;
@@ -95,6 +95,42 @@ Each dependency contains:
 Names and paths must be unique. Paths must be relative and may not escape the repository with `..`.
 
 `tools/tool.git-project` itself must not be repeated in this list.
+
+## Controlled transitive external closure
+
+For a root repository, all declared dependencies keep the existing direct
+bootstrap/update behaviour.
+
+When a declared dependency is itself consumed as a dependency, only entries
+with both:
+
+```text
+role: external
+type: git-submodule
+```
+
+are followed transitively. Nested tooling/development gitlinks are left
+uninitialized.
+
+A consumed owner remains authoritative for its nested dependency state:
+
+- the nested path must be a committed gitlink in that owner;
+- the matching `.gitmodules` URL and `project.yml` metadata are validated;
+- the nested worktree is initialized/restored at the owner's committed gitlink;
+- a full-SHA or tag ref must resolve to that exact gitlink;
+- a branch ref must resolve, while the committed gitlink remains the exact
+  reproducible owner pin;
+- dirty nested worktrees are refused;
+- traversal detects repository cycles on the current ancestry but allows the
+  same repository at independent sibling/owner paths.
+
+`status` is read-only and reports nested external entries with owner, path,
+configured ref, exact gitlink/current revision and dirty/uninitialized state.
+It does not fetch moving refs.
+
+A consumer does not remove undeclared local paths or rewrite a consumed owner's
+gitlinks. Removing or advancing a nested dependency remains an explicit change
+in the repository that owns it.
 
 ## Ref semantics
 
