@@ -65,8 +65,39 @@ try {
     if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util changed during dirty protection." }
 
     $OriginalProject = Get-Content project.yml -Raw
-    $ChangedProject = $OriginalProject -replace "(?m)^    ref: v0\.2\.0$", "    ref: v0.1.0"
-    Set-Content project.yml $ChangedProject -NoNewline
+    $RefPattern = [regex]'(?m)^[ \t]*ref:[ \t]*v0\.2\.0[ \t]*\r?
+    .\update-repo.ps1
+    if ((git -C $RootUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Root util did not move independently." }
+    if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util changed unexpectedly." }
+    [System.IO.File]::WriteAllText((Resolve-Path project.yml), $OriginalProject, [System.Text.UTF8Encoding]::new($false))
+    .\update-repo.ps1
+    if ((git -C $RootUtilPath rev-parse HEAD).Trim() -ne $RootUtilRef) { throw "Root util did not restore." }
+    if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util moved during restore." }
+
+    git -C $MechintPath submodule deinit -f -- ext/lib.scad.util | Out-Null
+    $Uninitialized = (.\update-repo.ps1 status 2>&1) -join [Environment]::NewLine
+    if ($Uninitialized -notmatch "nested\s+lib\.scad\.util.*UNINITIALIZED.*owner=deps/lib\.scad\.mechint") { throw "Nested uninitialized status missing." }
+    .\update-repo.ps1
+    if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util was not restored." }
+
+    New-Item -ItemType Directory -Force -Path deps/local-sentinel | Out-Null
+    Set-Content deps/local-sentinel/keep.txt "keep"
+    .\update-repo.ps1
+    if (-not (Test-Path deps/local-sentinel/keep.txt)) { throw "Unrelated local path was deleted." }
+    Remove-Item -Recurse -Force deps/local-sentinel
+
+    $FinalStatus = (.\update-repo.ps1 status 2>&1) -join [Environment]::NewLine
+    Write-Host $FinalStatus
+    if ($FinalStatus -match "nested .* (DIRTY|DIFF|UNINITIALIZED|MISSING_GITLINK|CYCLE)") { throw "Nested closure did not return clean." }
+    $Dirty = (git status --porcelain) -join [Environment]::NewLine
+    if ($Dirty) { throw "Fixture did not return clean:`n$Dirty" }
+} finally {
+    Pop-Location
+}
+
+    $ChangedProject = $RefPattern.Replace($OriginalProject, '    ref: v0.1.0', 1)
+    if ($ChangedProject -eq $OriginalProject) { throw "Unable to locate root util v0.2.0 ref in project.yml." }
+    [System.IO.File]::WriteAllText((Resolve-Path project.yml), $ChangedProject, [System.Text.UTF8Encoding]::new($false))
     .\update-repo.ps1
     if ((git -C $RootUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Root util did not move independently." }
     if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util changed unexpectedly." }
