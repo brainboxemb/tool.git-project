@@ -337,35 +337,7 @@ function Normalize-RepositoryUrl {
     param([string] $Url)
     $Value = $Url.Trim().TrimEnd('/')
     if ($Value.EndsWith('.git')) { $Value = $Value.Substring(0, $Value.Length - 4) }
-    if ($Value -match '^git@github\.com:(.+)
-$Root = Resolve-RepoRoot -Requested $RepoRoot
-$Model = Read-ProjectModel -Root $Root
-
-switch ($Command) {
-    "validate" {
-        Write-Host "project.yml valid: $($Model.ProjectName) ($($Model.Dependencies.Count) dependencies, $($Model.Profiles.Count) profiles)"
-    }
-    "status" {
-        Show-Status -Root $Root -Model $Model
-    }
-    "bootstrap" {
-        foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Bootstrapping" }
-        Initialize-RootExternalClosure -Root $Root -Model $Model
-        Write-Host ""
-        Show-Status -Root $Root -Model $Model
-        Write-Host ""
-        Write-Host "Bootstrap complete. Review parent changes with: git status"
-    }
-    "update" {
-        foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Updating" }
-        Initialize-RootExternalClosure -Root $Root -Model $Model
-        Write-Host ""
-        Show-Status -Root $Root -Model $Model
-        Write-Host ""
-        Write-Host "Update complete. Review project.yml and gitlink changes before committing."
-    }
-}
-) { $Value = "https://github.com/$($Matches[1])" }
+    if ($Value -match '^git@github\.com:(.+)$') { $Value = "https://github.com/$($Matches[1])" }
     return $Value
 }
 
@@ -384,33 +356,7 @@ function Assert-NestedRefConsistency {
 
     Invoke-Git -WorkingDirectory $FullPath -Args @("fetch", "origin", "--prune", "--tags") | Out-Null
 
-    if ($Ref -match '^[0-9a-fA-F]{40}
-$Root = Resolve-RepoRoot -Requested $RepoRoot
-$Model = Read-ProjectModel -Root $Root
-
-switch ($Command) {
-    "validate" {
-        Write-Host "project.yml valid: $($Model.ProjectName) ($($Model.Dependencies.Count) dependencies, $($Model.Profiles.Count) profiles)"
-    }
-    "status" {
-        Show-Status -Root $Root -Model $Model
-    }
-    "bootstrap" {
-        foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Bootstrapping" }
-        Write-Host ""
-        Show-Status -Root $Root -Model $Model
-        Write-Host ""
-        Write-Host "Bootstrap complete. Review parent changes with: git status"
-    }
-    "update" {
-        foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Updating" }
-        Write-Host ""
-        Show-Status -Root $Root -Model $Model
-        Write-Host ""
-        Write-Host "Update complete. Review project.yml and gitlink changes before committing."
-    }
-}
-) {
+    if ($Ref -match '^[0-9a-fA-F]{40}$') {
         if ($Ref -ne $Gitlink) {
             throw "Nested dependency ref $Ref does not match committed gitlink $Gitlink at $FullPath."
         }
@@ -430,8 +376,6 @@ switch ($Command) {
     if ($Branch.Code -ne 0) {
         throw "Unable to resolve nested dependency ref '$Ref' at $FullPath."
     }
-    # Moving branches are validated for existence only. The owner's committed
-    # gitlink remains authoritative to the consumer.
 }
 
 function Initialize-ExternalClosure {
@@ -516,6 +460,7 @@ switch ($Command) {
     }
     "bootstrap" {
         foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Bootstrapping" }
+        Initialize-RootExternalClosure -Root $Root -Model $Model
         Write-Host ""
         Show-Status -Root $Root -Model $Model
         Write-Host ""
@@ -523,6 +468,7 @@ switch ($Command) {
     }
     "update" {
         foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Updating" }
+        Initialize-RootExternalClosure -Root $Root -Model $Model
         Write-Host ""
         Show-Status -Root $Root -Model $Model
         Write-Host ""

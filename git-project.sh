@@ -272,8 +272,6 @@ nested_external_rows() {
   local owner="$1" project="$owner/project.yml"
   [[ -f "$project" ]] || return 0
 
-  # Reuse the generic parser for complete owner validation before extracting
-  # only the external dependency rows needed for traversal.
   bash "$0" validate --repo "$owner" >/dev/null
 
   awk '
@@ -336,16 +334,7 @@ owner_submodule_name_for_path() {
       printf '%s' "$key"
       return 0
     fi
-  done < <(git -C "$owner" config -f .gitmodules --get-regexp '^submodule\..*\.path
-echo
-show_status
-echo
-if [[ "$command_name" == "bootstrap" ]]; then
-  echo "Bootstrap complete. Review parent changes with: git status"
-else
-  echo "Update complete. Review project.yml and gitlink changes before committing."
-fi
- 2>/dev/null || true)
+  done < <(git -C "$owner" config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)
   return 1
 }
 
@@ -385,13 +374,11 @@ validate_nested_ref() {
     echo "Unable to resolve nested dependency ref '$ref' at $full." >&2
     exit 1
   }
-  # Moving branch refs are validated for existence only. The owner gitlink,
-  # not today's remote branch head, remains authoritative to a consumer.
 }
 
 walk_external_dependencies() {
   local owner="$1" lineage="$2"
-  local name type url path ref normalized full gitlink sub_name configured_url current
+  local name type url path ref normalized full gitlink sub_name configured_url current next_lineage
 
   while IFS='|' read -r name type url path ref; do
     [[ -n "$name" ]] || continue
@@ -401,7 +388,7 @@ walk_external_dependencies() {
     }
 
     normalized="$(normalize_repo_url "$url")"
-    if printf '%s\n' "$lineage" | grep -Fqx "$normalized"; then
+    if [[ ";${lineage};" == *";${normalized};"* ]]; then
       echo "Dependency cycle detected through $url while walking $owner." >&2
       exit 1
     fi
@@ -425,6 +412,7 @@ walk_external_dependencies() {
 
     git -C "$owner" submodule sync -- "$path" >/dev/null
     git -C "$owner" submodule update --init -- "$path" >/dev/null
+
     full="$owner/$path"
     dependency_repo_initialized "$full" || {
       echo "Unable to initialize transitive external dependency '$name' at $full." >&2
@@ -440,42 +428,22 @@ walk_external_dependencies() {
     validate_nested_ref "$full" "$ref" "$gitlink"
 
     echo "external $name owner=$owner path=$path current=${current:0:12} ref=$ref"
-    walk_external_dependencies "$full" "$lineage"
-echo
-show_status
-echo
-if [[ "$command_name" == "bootstrap" ]]; then
-  echo "Bootstrap complete. Review parent changes with: git status"
-else
-  echo "Update complete. Review project.yml and gitlink changes before committing."
-fi
-\n'"$normalized"
+    if [[ -n "$lineage" ]]; then next_lineage="$lineage;$normalized"; else next_lineage="$normalized"; fi
+    walk_external_dependencies "$full" "$next_lineage"
   done < <(nested_external_rows "$owner")
 }
 
 walk_root_external_dependencies() {
-  local root_url="" lineage="" i full normalized
+  local root_url="" root_lineage="" i full normalized lineage
   root_url="$(git -C "$repo_root" remote get-url origin 2>/dev/null || true)"
-  [[ -z "$root_url" ]] || lineage="$(normalize_repo_url "$root_url")"
+  [[ -z "$root_url" ]] || root_lineage="$(normalize_repo_url "$root_url")"
 
   for i in "${!dep_names[@]}"; do
     [[ "${dep_roles[$i]}" == "external" ]] || continue
     full="$repo_root/${dep_paths[$i]}"
     normalized="$(normalize_repo_url "${dep_urls[$i]}")"
-    if [[ -n "$lineage" ]]; then
-      walk_external_dependencies "$full" "$lineage"
-echo
-show_status
-echo
-if [[ "$command_name" == "bootstrap" ]]; then
-  echo "Bootstrap complete. Review parent changes with: git status"
-else
-  echo "Update complete. Review project.yml and gitlink changes before committing."
-fi
-\n'"$normalized"
-    else
-      walk_external_dependencies "$full" "$normalized"
-    fi
+    if [[ -n "$root_lineage" ]]; then lineage="$root_lineage;$normalized"; else lineage="$normalized"; fi
+    walk_external_dependencies "$full" "$lineage"
   done
 }
 
