@@ -36,7 +36,7 @@ jobs:
           git -C "$repo/tools/tool.git-project" fetch origin "$TOOL_BRANCH"
           git -C "$repo/tools/tool.git-project" checkout --detach "origin/$TOOL_BRANCH"
           tool_sha="$(git -C "$repo/tools/tool.git-project" rev-parse HEAD)"
-          bash support/managed-consumer-launchers.sh refresh --repo "$repo"
+          bash "$repo/tools/tool.git-project/support/managed-consumer-launchers.sh" refresh --repo "$repo"
 
           # Commit the declared dependency as a gitlink as a real consumer does.
           # A normal clone will contain the gitlink registration but not the
@@ -45,7 +45,7 @@ jobs:
           git -C "$repo/tools/tool.java-project" fetch origin "$JAVA_TOOL_REF"
           git -C "$repo/tools/tool.java-project" checkout --detach "$JAVA_TOOL_REF"
 
-          git -C "$repo" add project.yml project.example.yml bootstrap.sh update-repo.sh .gitmodules tools/tool.git-project tools/tool.java-project
+          git -C "$repo" add project.yml project.example.yml bootstrap.ps1 bootstrap.sh update-repo.ps1 update-repo.sh .gitmodules tools/tool.git-project tools/tool.java-project
           git -C "$repo" commit -m fixture
 
           # Emulate a normal clone without --recurse-submodules: both committed
@@ -135,13 +135,13 @@ jobs:
           git -C "$repo/tools/tool.git-project" fetch origin $env:TOOL_BRANCH
           git -C "$repo/tools/tool.git-project" checkout --detach "origin/$env:TOOL_BRANCH"
           $toolSha = (git -C "$repo/tools/tool.git-project" rev-parse HEAD).Trim()
-          & .\support\managed-consumer-launchers.ps1 refresh -RepoRoot $repo
+          & "$repo\tools\tool.git-project\support\managed-consumer-launchers.ps1" refresh -RepoRoot $repo
 
           git -C $repo submodule add https://github.com/brainboxemb/tool.java-project.git tools/tool.java-project
           git -C "$repo/tools/tool.java-project" fetch origin $env:JAVA_TOOL_REF
           git -C "$repo/tools/tool.java-project" checkout --detach $env:JAVA_TOOL_REF
 
-          git -C $repo add project.yml project.example.yml bootstrap.ps1 update-repo.ps1 .gitmodules tools/tool.git-project tools/tool.java-project
+          git -C $repo add project.yml project.example.yml bootstrap.ps1 bootstrap.sh update-repo.ps1 update-repo.sh .gitmodules tools/tool.git-project tools/tool.java-project
           git -C $repo commit -m fixture
 
           git -C $repo submodule deinit -f -- tools/tool.git-project tools/tool.java-project
