@@ -48,14 +48,14 @@ for path in tools/tool.git-project tools/tool.scad-project; do
   git -C "$nested_util_path" submodule status -- "$path" | grep -q '^-'
 done
 
-status="$(./update-repo.sh status)"
+status="$(./update.sh status)"
 printf '%s\n' "$status"
 printf '%s\n' "$status" | grep -F "nested lib.scad.util" | grep -F "owner=$mechint_path" | grep -F "path=ext/lib.scad.util" | grep -F "ref=v0.1.0" | grep -F "OK"
 
 printf '\nowner-test dirty marker\n' >> "$nested_util_path/README.md"
-dirty_status="$(./update-repo.sh status)"
+dirty_status="$(./update.sh status)"
 printf '%s\n' "$dirty_status" | grep -F "nested lib.scad.util" | grep -F "owner=$mechint_path" | grep -F "DIRTY"
-if ./update-repo.sh > transitive-dirty-update.log 2>&1; then
+if ./update.sh > transitive-dirty-update.log 2>&1; then
   cat transitive-dirty-update.log
   echo "update unexpectedly succeeded with dirty nested dependency" >&2
   exit 1
@@ -67,27 +67,27 @@ test "$(git -C "$nested_util_path" rev-parse HEAD)" = "$nested_util_ref"
 
 cp project.yml project.yml.owner-test
 sed -i '0,/ref: v0.2.0/s//ref: v0.1.0/' project.yml
-./update-repo.sh
+./update.sh
 test "$(git -C "$root_util_path" rev-parse HEAD)" = "$nested_util_ref"
 test "$(git -C "$nested_util_path" rev-parse HEAD)" = "$nested_util_ref"
 mv project.yml.owner-test project.yml
-./update-repo.sh
+./update.sh
 test "$(git -C "$root_util_path" rev-parse HEAD)" = "$root_util_ref"
 test "$(git -C "$nested_util_path" rev-parse HEAD)" = "$nested_util_ref"
 
 git -C "$mechint_path" submodule deinit -f -- ext/lib.scad.util >/dev/null
-uninit_status="$(./update-repo.sh status)"
+uninit_status="$(./update.sh status)"
 printf '%s\n' "$uninit_status" | grep -F "nested lib.scad.util" | grep -F "owner=$mechint_path" | grep -F "UNINITIALIZED"
-./update-repo.sh
+./update.sh
 test "$(git -C "$nested_util_path" rev-parse HEAD)" = "$nested_util_ref"
 
 mkdir -p deps/local-sentinel
 printf 'keep\n' > deps/local-sentinel/keep.txt
-./update-repo.sh
+./update.sh
 test -f deps/local-sentinel/keep.txt
 rm -rf deps/local-sentinel
 
-final_status="$(./update-repo.sh status)"
+final_status="$(./update.sh status)"
 printf '%s\n' "$final_status"
 if printf '%s\n' "$final_status" | grep -E 'nested .* (DIRTY|DIFF|UNINITIALIZED|MISSING_GITLINK|CYCLE)' >/dev/null; then
   echo "nested closure did not return clean" >&2
