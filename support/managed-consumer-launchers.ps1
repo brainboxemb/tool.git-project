@@ -33,8 +33,8 @@ if ($LASTEXITCODE -ne 0 -or -not $Root) {
 $ManagedLaunchers = @(
     [PSCustomObject]@{ Source = "bootstrap/consumer-bootstrap.ps1"; Target = "bootstrap.ps1" },
     [PSCustomObject]@{ Source = "bootstrap/consumer-bootstrap.sh"; Target = "bootstrap.sh" },
-    [PSCustomObject]@{ Source = "bootstrap/consumer-update.ps1"; Target = "update-repo.ps1" },
-    [PSCustomObject]@{ Source = "bootstrap/consumer-update.sh"; Target = "update-repo.sh" }
+    [PSCustomObject]@{ Source = "bootstrap/consumer-update.ps1"; Target = "update.ps1" },
+    [PSCustomObject]@{ Source = "bootstrap/consumer-update.sh"; Target = "update.sh" }
 )
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
