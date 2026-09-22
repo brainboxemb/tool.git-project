@@ -61,21 +61,21 @@ try {
         if ($UtilTool -notmatch "^-") { throw "Nested util tooling was initialized: $Path" }
     }
 
-    $Status = (.\update-repo.ps1 status 2>&1) -join [Environment]::NewLine
+    $Status = (.\update.ps1 status 2>&1) -join [Environment]::NewLine
     Write-Host $Status
     if ($Status -notmatch "nested\s+lib\.scad\.util.*OK.*owner=deps/lib\.scad\.mechint.*path=ext/lib\.scad\.util.*ref=v0\.1\.0") {
         throw "Nested clean status missing."
     }
 
     Add-Content -Path "$NestedUtilPath/README.md" -Value "owner-test dirty marker"
-    $DirtyStatus = (.\update-repo.ps1 status 2>&1) -join [Environment]::NewLine
+    $DirtyStatus = (.\update.ps1 status 2>&1) -join [Environment]::NewLine
     if ($DirtyStatus -notmatch "nested\s+lib\.scad\.util.*DIRTY.*owner=deps/lib\.scad\.mechint") {
         throw "Nested dirty status missing."
     }
 
     $Blocked = $false
     try {
-        .\update-repo.ps1 *> transitive-dirty-update.log
+        .\update.ps1 *> transitive-dirty-update.log
     } catch {
         $Blocked = $true
     }
@@ -107,7 +107,7 @@ try {
         [System.Text.UTF8Encoding]::new($false)
     )
 
-    .\update-repo.ps1
+    .\update.ps1
 
     if ((git -C $RootUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Root util did not move independently." }
     if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util changed unexpectedly." }
@@ -118,7 +118,7 @@ try {
         [System.Text.UTF8Encoding]::new($false)
     )
 
-    .\update-repo.ps1
+    .\update.ps1
 
     if ((git -C $RootUtilPath rev-parse HEAD).Trim() -ne $RootUtilRef) { throw "Root util did not restore." }
     if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util moved during restore." }
@@ -126,22 +126,22 @@ try {
     git -C $MechintPath submodule deinit -f -- ext/lib.scad.util | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Unable to deinitialize nested util." }
 
-    $Uninitialized = (.\update-repo.ps1 status 2>&1) -join [Environment]::NewLine
+    $Uninitialized = (.\update.ps1 status 2>&1) -join [Environment]::NewLine
     if ($Uninitialized -notmatch "nested\s+lib\.scad\.util.*UNINITIALIZED.*owner=deps/lib\.scad\.mechint") {
         throw "Nested uninitialized status missing."
     }
 
-    .\update-repo.ps1
+    .\update.ps1
     if ((git -C $NestedUtilPath rev-parse HEAD).Trim() -ne $NestedUtilRef) { throw "Nested util was not restored." }
 
     New-Item -ItemType Directory -Force -Path deps/local-sentinel | Out-Null
     Set-Content deps/local-sentinel/keep.txt "keep"
 
-    .\update-repo.ps1
+    .\update.ps1
     if (-not (Test-Path deps/local-sentinel/keep.txt)) { throw "Unrelated local path was deleted." }
     Remove-Item -Recurse -Force deps/local-sentinel
 
-    $FinalStatus = (.\update-repo.ps1 status 2>&1) -join [Environment]::NewLine
+    $FinalStatus = (.\update.ps1 status 2>&1) -join [Environment]::NewLine
     Write-Host $FinalStatus
     if ($FinalStatus -match "nested .* (DIRTY|DIFF|UNINITIALIZED|MISSING_GITLINK|CYCLE)") {
         throw "Nested closure did not return clean."

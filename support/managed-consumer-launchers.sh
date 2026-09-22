@@ -27,7 +27,7 @@ else
 fi
 
 sources=("bootstrap/consumer-bootstrap.ps1" "bootstrap/consumer-bootstrap.sh" "bootstrap/consumer-update.ps1" "bootstrap/consumer-update.sh")
-targets=("bootstrap.ps1" "bootstrap.sh" "update-repo.ps1" "update-repo.sh")
+targets=("bootstrap.ps1" "bootstrap.sh" "update.ps1" "update.sh")
 
 render_launcher() {
   local source="$1"
