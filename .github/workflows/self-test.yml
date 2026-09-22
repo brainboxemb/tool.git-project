@@ -45,7 +45,7 @@ jobs:
           git -C "$repo/tools/tool.java-project" fetch origin "$JAVA_TOOL_REF"
           git -C "$repo/tools/tool.java-project" checkout --detach "$JAVA_TOOL_REF"
 
-          git -C "$repo" add project.yml project.example.yml bootstrap.ps1 bootstrap.sh update-repo.ps1 update-repo.sh .gitmodules tools/tool.git-project tools/tool.java-project
+          git -C "$repo" add project.yml project.example.yml bootstrap.ps1 bootstrap.sh update.ps1 update.sh .gitmodules tools/tool.git-project tools/tool.java-project
           git -C "$repo" commit -m fixture
 
           # Emulate a normal clone without --recurse-submodules: both committed
@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$FIXTURE_REPO"
-          ./update-repo.sh
+          ./update.sh
           test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
           test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
       - name: Managed launcher drift and local patch are visible
@@ -79,18 +79,18 @@ jobs:
         run: |
           set -euo pipefail
           cd "$FIXTURE_REPO"
-          sed -i 's/^# Managed-Source-Revision:.*/# Managed-Source-Revision: stale-test-revision/' update-repo.sh
+          sed -i 's/^# Managed-Source-Revision:.*/# Managed-Source-Revision: stale-test-revision/' update.sh
           tools/tool.git-project/git-project.sh status --repo . > launcher-drift.log 2>&1
           cat launcher-drift.log
           grep -q "Managed launcher drift" launcher-drift.log
-          git checkout -- update-repo.sh
-          sed -i 's/^# Managed-Local-Patch: none/# Managed-Local-Patch: issue-test-local-change/' update-repo.sh
-          printf '\n# retained local patch\n' >> update-repo.sh
+          git checkout -- update.sh
+          sed -i 's/^# Managed-Local-Patch: none/# Managed-Local-Patch: issue-test-local-change/' update.sh
+          printf '\n# retained local patch\n' >> update.sh
           tools/tool.git-project/git-project.sh refresh-launchers --repo . > launcher-patch.log 2>&1
           cat launcher-patch.log
           grep -q "declared local patch" launcher-patch.log
-          grep -q "retained local patch" update-repo.sh
-          git checkout -- update-repo.sh
+          grep -q "retained local patch" update.sh
+          git checkout -- update.sh
           rm -f launcher-drift.log launcher-patch.log
       - name: Dirty dependency is protected
         shell: bash
@@ -98,7 +98,7 @@ jobs:
           set -euo pipefail
           cd "$FIXTURE_REPO"
           printf '\nlocal test change\n' >> tools/tool.java-project/README.md
-          if ./update-repo.sh > dirty-update.log 2>&1; then
+          if ./update.sh > dirty-update.log 2>&1; then
             cat dirty-update.log
             echo "update unexpectedly succeeded for a dirty dependency" >&2
             exit 1
@@ -142,7 +142,7 @@ jobs:
           git -C "$repo/tools/tool.java-project" fetch origin $env:JAVA_TOOL_REF
           git -C "$repo/tools/tool.java-project" checkout --detach $env:JAVA_TOOL_REF
 
-          git -C $repo add project.yml project.example.yml bootstrap.ps1 bootstrap.sh update-repo.ps1 update-repo.sh .gitmodules tools/tool.git-project tools/tool.java-project
+          git -C $repo add project.yml project.example.yml bootstrap.ps1 bootstrap.sh update.ps1 update.sh .gitmodules tools/tool.git-project tools/tool.java-project
           git -C $repo commit -m fixture
 
           git -C $repo submodule deinit -f -- tools/tool.git-project tools/tool.java-project
@@ -174,7 +174,7 @@ jobs:
         run: |
           Push-Location $env:FIXTURE_REPO
           try {
-            .\update-repo.ps1
+            .\update.ps1
             $toolActual = (git -C tools/tool.git-project rev-parse HEAD).Trim()
             if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA after update: $toolActual" }
             $javaActual = (git -C tools/tool.java-project rev-parse HEAD).Trim()
@@ -187,14 +187,14 @@ jobs:
         run: |
           Push-Location $env:FIXTURE_REPO
           try {
-            $path = Join-Path $env:FIXTURE_REPO "update-repo.ps1"
+            $path = Join-Path $env:FIXTURE_REPO "update.ps1"
             $text = [System.IO.File]::ReadAllText($path)
             $text = [regex]::Replace($text, '(?m)^# Managed-Source-Revision:.*$', '# Managed-Source-Revision: stale-test-revision')
             [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
             $output = (& .\tools\tool.git-project\git-project.ps1 status -RepoRoot . 3>&1 2>&1 | Out-String)
             Write-Host $output
             if ($output -notmatch 'Managed launcher drift') { throw "Expected launcher drift warning." }
-            git checkout -- update-repo.ps1
+            git checkout -- update.ps1
             $text = [System.IO.File]::ReadAllText($path)
             $text = $text.Replace('# Managed-Local-Patch: none', '# Managed-Local-Patch: issue-test-local-change') + "`n# retained local patch`n"
             [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
@@ -202,7 +202,7 @@ jobs:
             Write-Host $patchOutput
             if ($patchOutput -notmatch 'declared local patch') { throw "Expected local patch preservation warning." }
             if ([System.IO.File]::ReadAllText($path) -notmatch 'retained local patch') { throw "Local patch was overwritten." }
-            git checkout -- update-repo.ps1
+            git checkout -- update.ps1
           } finally {
             Pop-Location
           }
@@ -214,7 +214,7 @@ jobs:
             Add-Content -Path tools/tool.java-project/README.md -Value "local test change"
             $failedAsExpected = $false
             try {
-              .\update-repo.ps1
+              .\update.ps1
             } catch {
               $failedAsExpected = $true
               if ($_.Exception.Message -notmatch 'local changes') { throw }
