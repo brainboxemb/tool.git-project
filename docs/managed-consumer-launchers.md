@@ -6,7 +6,7 @@ project code.
 The two logical launcher families are:
 
 - `bootstrap.ps1` / `bootstrap.sh`;
-- `update-repo.ps1` / `update-repo.sh`.
+- `update.ps1` / `update.sh`.
 
 Their canonical generic sources live under `bootstrap/` in
 `tool.git-project`. Generated consumer copies retain the canonical source,
