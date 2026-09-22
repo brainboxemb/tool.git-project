@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Managed root `bootstrap.*` and `update-repo.*` launchers retain canonical source, source version and exact source revision metadata, with explicit local-patch declaration and drift warnings.
+- Generic `role: tooling` dependencies may expose an optional `consumer/post-update.ps1|sh` hook so domain tools can extend repository update without replacing the generic root launcher.
+- `refresh-launchers` provides the central Git-only refresh path for managed consumer launchers on Windows and POSIX.
+
+### Changed
+
+- Normal generic bootstrap/update checks managed launcher drift and refreshes unpatched copies from the exact pinned `tool.git-project` revision.
+
+
 ## 0.2.9 — 2026-09-21
 
 ### Added

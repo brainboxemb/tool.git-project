@@ -199,6 +199,10 @@ They require the bootstrap tool to be a **committed gitlink**, restore that exac
 
 The substantial dependency logic stays here rather than being copied into every consumer.
 
+The root launchers are centrally managed copies with source/version/revision metadata. Normal bootstrap/update checks for drift and refreshes unpatched copies from the exact pinned tool revision. A deliberate consumer patch must be declared through the `Managed-Local-Patch` header and is then preserved. Domain tooling extends update through an optional `consumer/post-update.*` hook instead of replacing the generic root launcher.
+
+See [Managed consumer launchers](docs/managed-consumer-launchers.md) for the provenance, refresh and local-patch contract.
+
 ## Generated output lifecycle
 
 Generated repository output uses one shared lifecycle independent of Java, SCAD, or documentation semantics:

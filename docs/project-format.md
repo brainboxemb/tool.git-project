@@ -171,3 +171,34 @@ The bootstrap scripts intentionally avoid requiring an external YAML runtime. Ve
 Flow maps, anchors, aliases, multiline scalars, inline comments, and arbitrary nested structures are not part of the generic v1 parser.
 
 Profile-specific files are free to use richer YAML because they are parsed by their owning tool, not by `tool.git-project`.
+
+
+### Optional tooling post-update hook
+
+A root dependency with `role: tooling` may expose one platform-specific
+post-update hook:
+
+```text
+consumer/post-update.ps1
+consumer/post-update.sh
+```
+
+The generic updater invokes the matching hook only after a successful root
+dependency update. The hook receives the consumer repository root and may
+perform domain-owned synchronization that depends on the newly accepted tooling
+state. It must not reimplement generic dependency update/status logic.
+
+PowerShell contract:
+
+```powershell
+param([string] $RepoRoot)
+```
+
+POSIX contract:
+
+```text
+post-update.sh --repo <repository-root>
+```
+
+No hook is required. A tooling dependency without one remains a normal generic
+dependency.

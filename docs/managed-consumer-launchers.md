@@ -17,3 +17,26 @@ refresh never silently erases it.
 Domain tooling does not replace the root update launcher. A tooling dependency
 may instead expose an optional platform-specific post-update hook which runs
 after the generic dependency update.
+
+
+## Consumer metadata
+
+Generated launchers contain:
+
+```text
+Managed-Source
+Managed-Source-Version
+Managed-Source-Revision
+Managed-Local-Patch
+```
+
+`Managed-Source` names the canonical repository/path. Version and revision are
+stamped from the exact `tool.git-project` checkout performing the refresh.
+
+`Managed-Local-Patch: none` means the file is safe to refresh from the
+canonical source. A deliberate consumer-specific edit must replace `none` with
+a short issue/reason identifier before the file is changed. Refresh then
+preserves that file and emits a warning instead of silently removing the patch.
+
+Unmarked/legacy launcher differences are treated as drift: check emits a warning
+and explicit/normal refresh adopts the canonical generic launcher.

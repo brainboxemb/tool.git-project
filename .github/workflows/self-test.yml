@@ -28,9 +28,6 @@ jobs:
           repo="$RUNNER_TEMP/git-project-fixture"
           mkdir -p "$repo"
           cp fixture/project.yml fixture/project.example.yml "$repo/"
-          cp bootstrap/consumer-bootstrap.sh "$repo/bootstrap.sh"
-          cp bootstrap/consumer-update.sh "$repo/update-repo.sh"
-          chmod +x "$repo/bootstrap.sh" "$repo/update-repo.sh"
 
           git -C "$repo" init
           git -C "$repo" config user.name tool-git-project-test
@@ -39,6 +36,7 @@ jobs:
           git -C "$repo/tools/tool.git-project" fetch origin "$TOOL_BRANCH"
           git -C "$repo/tools/tool.git-project" checkout --detach "origin/$TOOL_BRANCH"
           tool_sha="$(git -C "$repo/tools/tool.git-project" rev-parse HEAD)"
+          bash support/managed-consumer-launchers.sh refresh --repo "$repo"
 
           # Commit the declared dependency as a gitlink as a real consumer does.
           # A normal clone will contain the gitlink registration but not the
@@ -76,6 +74,23 @@ jobs:
           ./update-repo.sh
           test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
           test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
+      - name: Managed launcher drift and local patch are visible
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$FIXTURE_REPO"
+          sed -i 's/^# Managed-Source-Revision:.*/# Managed-Source-Revision: stale-test-revision/' update-repo.sh
+          tools/tool.git-project/git-project.sh status --repo . > launcher-drift.log 2>&1
+          cat launcher-drift.log
+          grep -q "Managed launcher drift" launcher-drift.log
+          git checkout -- update-repo.sh
+          sed -i 's/^# Managed-Local-Patch: none/# Managed-Local-Patch: issue-test-local-change/' update-repo.sh
+          printf '\n# retained local patch\n' >> update-repo.sh
+          tools/tool.git-project/git-project.sh refresh-launchers --repo . > launcher-patch.log 2>&1
+          cat launcher-patch.log
+          grep -q "declared local patch" launcher-patch.log
+          grep -q "retained local patch" update-repo.sh
+          git checkout -- update-repo.sh
       - name: Dirty dependency is protected
         shell: bash
         run: |
@@ -112,8 +127,6 @@ jobs:
           $repo = Join-Path $env:RUNNER_TEMP "git-project-fixture"
           New-Item -ItemType Directory -Force -Path $repo | Out-Null
           Copy-Item fixture/project.yml, fixture/project.example.yml -Destination $repo
-          Copy-Item bootstrap/consumer-bootstrap.ps1 -Destination (Join-Path $repo "bootstrap.ps1")
-          Copy-Item bootstrap/consumer-update.ps1 -Destination (Join-Path $repo "update-repo.ps1")
 
           git -C $repo init
           git -C $repo config user.name tool-git-project-test
@@ -122,6 +135,7 @@ jobs:
           git -C "$repo/tools/tool.git-project" fetch origin $env:TOOL_BRANCH
           git -C "$repo/tools/tool.git-project" checkout --detach "origin/$env:TOOL_BRANCH"
           $toolSha = (git -C "$repo/tools/tool.git-project" rev-parse HEAD).Trim()
+          & .\support\managed-consumer-launchers.ps1 refresh -RepoRoot $repo
 
           git -C $repo submodule add https://github.com/brainboxemb/tool.java-project.git tools/tool.java-project
           git -C "$repo/tools/tool.java-project" fetch origin $env:JAVA_TOOL_REF
@@ -164,6 +178,51 @@ jobs:
             if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA after update: $toolActual" }
             $javaActual = (git -C tools/tool.java-project rev-parse HEAD).Trim()
             if ($javaActual -ne $env:JAVA_TOOL_REF) { throw "Unexpected Java tool SHA after update: $javaActual" }
+          } finally {
+            Pop-Location
+          }
+      - name: Managed launcher drift and local patch are visible
+        shell: pwsh
+        run: |
+          Push-Location $env:FIXTURE_REPO
+          try {
+            $path = Join-Path $env:FIXTURE_REPO "update-repo.ps1"
+            $text = [System.IO.File]::ReadAllText($path)
+            $text = [regex]::Replace($text, '(?m)^# Managed-Source-Revision:.*
+        run: |
+          Push-Location $env:FIXTURE_REPO
+          try {
+            Add-Content -Path tools/tool.java-project/README.md -Value "local test change"
+            $failedAsExpected = $false
+            try {
+              .\update-repo.ps1
+            } catch {
+              $failedAsExpected = $true
+              if ($_.Exception.Message -notmatch 'local changes') { throw }
+              Write-Host $_.Exception.Message
+            }
+            if (-not $failedAsExpected) { throw "update unexpectedly succeeded for a dirty dependency" }
+            git -C tools/tool.java-project reset --hard HEAD
+          } finally {
+            Pop-Location
+          }
+      - name: Transitive external dependency contract
+        shell: pwsh
+        run: .\tests\transitive-external-closure.ps1 -RepoRoot $env:FIXTURE_REPO
+, '# Managed-Source-Revision: stale-test-revision')
+            [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
+            $output = (& .\tools\tool.git-project\git-project.ps1 status -RepoRoot . 3>&1 2>&1 | Out-String)
+            Write-Host $output
+            if ($output -notmatch 'Managed launcher drift') { throw "Expected launcher drift warning." }
+            git checkout -- update-repo.ps1
+            $text = [System.IO.File]::ReadAllText($path)
+            $text = $text.Replace('# Managed-Local-Patch: none', '# Managed-Local-Patch: issue-test-local-change') + "`n# retained local patch`n"
+            [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
+            $patchOutput = (& .\tools\tool.git-project\git-project.ps1 refresh-launchers -RepoRoot . 3>&1 2>&1 | Out-String)
+            Write-Host $patchOutput
+            if ($patchOutput -notmatch 'declared local patch') { throw "Expected local patch preservation warning." }
+            if ([System.IO.File]::ReadAllText($path) -notmatch 'retained local patch') { throw "Local patch was overwritten." }
+            git checkout -- update-repo.ps1
           } finally {
             Pop-Location
           }
