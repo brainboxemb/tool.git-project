@@ -1,4 +1,5 @@
 name: Test execution evidence schema
+# Contract: the released execution-evidence schema accepts valid fixtures and rejects invalid contract fixtures. See docs/testing.md.
 
 on:
   pull_request:

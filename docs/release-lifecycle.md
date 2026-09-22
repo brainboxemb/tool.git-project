@@ -53,8 +53,8 @@ jobs:
       version: ${{ inputs.version || '' }}
       release_sha: ${{ inputs.release_sha || '' }}
       required_main_workflows: |
-        self-test.yml
-      tagged_verification_workflow: self-test.yml
+        test-self.yml
+      tagged_verification_workflow: test-self.yml
 ```
 
 Reusable workflows must be consumed from a deliberate released tag or immutable commit, not moving `main`.

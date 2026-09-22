@@ -1,4 +1,5 @@
 name: Test PR preview cleanup
+# Contract: preview cleanup may delete only the requested dev/pr-N namespace and must preserve protected/unrelated refs. See docs/testing.md.
 
 on:
   pull_request:
@@ -81,4 +82,4 @@ jobs:
           git config --global credential.helper store
           printf 'https://x-access-token:%s@github.com\n' "$GITHUB_TOKEN" > ~/.git-credentials
           git push origin --delete "$PROTECTED_BRANCH"
-          echo "Single-digit PR cleanup safety boundary verified."
+          echo "Preview cleanup namespace and protected-ref contract verified."

@@ -11,6 +11,7 @@
 ### Changed
 
 - Normal generic bootstrap/update checks managed launcher drift and refreshes unpatched copies from the exact pinned `tool.git-project` revision.
+- Release test architecture is documented as stable capability contracts rather than historical issue checks, including the exact workflows required before an immutable tool release.
 
 
 ## 0.2.9 — 2026-09-21

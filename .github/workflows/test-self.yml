@@ -1,4 +1,5 @@
 name: Self-test Git project tooling
+# Contract: generic Git bootstrap/status/update, managed launcher safety and dependency closure on Linux and Windows. See docs/testing.md.
 
 on:
   pull_request:
@@ -84,7 +85,7 @@ jobs:
           cat launcher-drift.log
           grep -q "Managed launcher drift" launcher-drift.log
           git checkout -- update.sh
-          sed -i 's/^# Managed-Local-Patch: none/# Managed-Local-Patch: issue-test-local-change/' update.sh
+          sed -i 's/^# Managed-Local-Patch: none/# Managed-Local-Patch: fixture-local-change/' update.sh
           printf '\n# retained local patch\n' >> update.sh
           tools/tool.git-project/git-project.sh refresh-launchers --repo . > launcher-patch.log 2>&1
           cat launcher-patch.log
@@ -196,7 +197,7 @@ jobs:
             if ($output -notmatch 'Managed launcher drift') { throw "Expected launcher drift warning." }
             git checkout -- update.ps1
             $text = [System.IO.File]::ReadAllText($path)
-            $text = $text.Replace('# Managed-Local-Patch: none', '# Managed-Local-Patch: issue-test-local-change') + "`n# retained local patch`n"
+            $text = $text.Replace('# Managed-Local-Patch: none', '# Managed-Local-Patch: fixture-local-change') + "`n# retained local patch`n"
             [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
             $patchOutput = (& .\tools\tool.git-project\git-project.ps1 refresh-launchers -RepoRoot . 3>&1 2>&1 | Out-String)
             Write-Host $patchOutput

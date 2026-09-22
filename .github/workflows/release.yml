@@ -28,13 +28,13 @@ jobs:
       version: ${{ inputs.version || '' }}
       release_sha: ${{ inputs.release_sha || '' }}
       required_main_workflows: |
-        self-test.yml
-        pr-preview-cleanup-test.yml
-        generated-output-publish-test.yml
-        generated-output-same-job-test.yml
-        reusable-release-test.yml
-        moon-orchestration-test.yml
-        execution-evidence-schema-test.yml
-      tagged_verification_workflow: generated-output-same-job-test.yml
+        test-self.yml
+        test-pr-preview-cleanup.yml
+        test-generated-output-publish.yml
+        test-generated-output-same-job.yml
+        test-release-lifecycle.yml
+        test-moon-orchestration.yml
+        test-execution-evidence-schema.yml
+      tagged_verification_workflow: test-generated-output-same-job.yml
       wait_for_tagged_verification: true
       create_github_release: true

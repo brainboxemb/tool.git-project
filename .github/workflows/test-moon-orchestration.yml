@@ -1,9 +1,10 @@
 name: Test Moon production orchestration
+# Contract: optional Moon affected/execution/cache interfaces remain portable and conservative on Linux and Windows. See docs/testing.md.
 
 on:
   pull_request:
     paths:
-      - '.github/workflows/moon-orchestration-test.yml'
+      - '.github/workflows/test-moon-orchestration.yml'
       - '.moon/**'
       - 'moon/**'
       - 'moon.yml'
@@ -22,7 +23,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/moon-orchestration-test.yml'
+      - '.github/workflows/test-moon-orchestration.yml'
       - '.moon/**'
       - 'moon/**'
       - 'moon.yml'
