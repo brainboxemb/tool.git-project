@@ -75,6 +75,44 @@ jobs:
           ./update.sh
           test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
           test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
+      - name: Bootstrap engine gitlink is visible and enforced
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$FIXTURE_REPO"
+
+          ./update.sh status > bootstrap-status.log 2>&1
+          cat bootstrap-status.log
+          grep -Eq '^tool\.git-project[[:space:]]+BOOTSTRAP state=OK' bootstrap-status.log
+
+          stale_sha="$(git -C tools/tool.git-project rev-parse "$EXPECTED_TOOL_SHA^")"
+          git -C tools/tool.git-project checkout --detach "$stale_sha" >/dev/null
+          test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$stale_sha"
+
+          if ./update.sh status > bootstrap-stale.log 2>&1; then
+            cat bootstrap-stale.log
+            echo "status unexpectedly accepted a stale bootstrap engine" >&2
+            exit 1
+          fi
+          cat bootstrap-stale.log
+          grep -Eq '^tool\.git-project[[:space:]]+BOOTSTRAP state=DIFF' bootstrap-stale.log
+          test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$stale_sha"
+
+          ./update.sh
+          test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
+
+          printf '\nbootstrap local test change\n' >> tools/tool.git-project/README.md
+          if ./update.sh > bootstrap-dirty.log 2>&1; then
+            cat bootstrap-dirty.log
+            echo "update unexpectedly accepted a dirty bootstrap engine" >&2
+            exit 1
+          fi
+          cat bootstrap-dirty.log
+          grep -q "Bootstrap engine 'tool.git-project' has local changes" bootstrap-dirty.log
+          grep -q "bootstrap local test change" tools/tool.git-project/README.md
+          git -C tools/tool.git-project reset --hard HEAD >/dev/null
+
+          rm -f bootstrap-status.log bootstrap-stale.log bootstrap-dirty.log
       - name: Managed launcher drift and local patch are visible
         shell: bash
         run: |
@@ -180,6 +218,56 @@ jobs:
             if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA after update: $toolActual" }
             $javaActual = (git -C tools/tool.java-project rev-parse HEAD).Trim()
             if ($javaActual -ne $env:JAVA_TOOL_REF) { throw "Unexpected Java tool SHA after update: $javaActual" }
+          } finally {
+            Pop-Location
+          }
+      - name: Bootstrap engine gitlink is visible and enforced
+        shell: pwsh
+        run: |
+          Push-Location $env:FIXTURE_REPO
+          try {
+            $statusOutput = (& .\update.ps1 status 3>&1 2>&1 | Out-String)
+            Write-Host $statusOutput
+            if ($statusOutput -notmatch 'tool\.git-project\s+BOOTSTRAP state=OK') {
+              throw "Bootstrap OK status row missing."
+            }
+
+            $staleSha = (git -C tools/tool.git-project rev-parse "$env:EXPECTED_TOOL_SHA^").Trim()
+            git -C tools/tool.git-project checkout --detach $staleSha | Out-Null
+            $beforeStatus = (git -C tools/tool.git-project rev-parse HEAD).Trim()
+            if ($beforeStatus -ne $staleSha) { throw "Unable to prepare stale bootstrap fixture." }
+
+            $statusFailed = $false
+            try {
+              .\update.ps1 status
+            } catch {
+              $statusFailed = $true
+              $message = $_ | Out-String
+              Write-Host $message
+              if ($message -notmatch 'committed gitlink') { throw }
+            }
+            if (-not $statusFailed) { throw "status unexpectedly accepted a stale bootstrap engine" }
+            $afterStatus = (git -C tools/tool.git-project rev-parse HEAD).Trim()
+            if ($afterStatus -ne $staleSha) { throw "Read-only status changed the bootstrap engine." }
+
+            .\update.ps1
+            $aligned = (git -C tools/tool.git-project rev-parse HEAD).Trim()
+            if ($aligned -ne $env:EXPECTED_TOOL_SHA) { throw "Update did not restore the committed bootstrap gitlink." }
+
+            Add-Content -Path tools/tool.git-project/README.md -Value "bootstrap local test change"
+            $dirtyFailed = $false
+            try {
+              .\update.ps1
+            } catch {
+              $dirtyFailed = $true
+              if ($_.Exception.Message -notmatch "Bootstrap engine 'tool.git-project' has local changes") { throw }
+              Write-Host $_.Exception.Message
+            }
+            if (-not $dirtyFailed) { throw "update unexpectedly accepted a dirty bootstrap engine" }
+            if ((Get-Content tools/tool.git-project/README.md -Raw) -notmatch 'bootstrap local test change') {
+              throw "Dirty bootstrap change was overwritten."
+            }
+            git -C tools/tool.git-project reset --hard HEAD | Out-Null
           } finally {
             Pop-Location
           }
