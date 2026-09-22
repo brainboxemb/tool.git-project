@@ -534,7 +534,36 @@ run_tooling_post_update_hooks() {
   done
 }
 
+show_bootstrap_engine_status() {
+  local path="tools/tool.git-project" full="$repo_root/tools/tool.git-project"
+  local gitlink current dirty state version value
+  gitlink="$(nested_gitlink_commit "$repo_root" "$path" || true)"
+  if [[ -z "$gitlink" ]]; then
+    printf '%-28s BOOTSTRAP state=%-13s path=%s\n' "tool.git-project" "MISSING_GITLINK" "$path"
+    return
+  fi
+  if ! dependency_repo_initialized "$full"; then
+    printf '%-28s BOOTSTRAP state=%-13s current=- gitlink=%s version=unknown\n'       "tool.git-project" "UNINITIALIZED" "${gitlink:0:12}"
+    return
+  fi
+  current="$(git -C "$full" rev-parse HEAD)"
+  dirty="$(git -C "$full" status --porcelain)"
+  if [[ -n "$dirty" ]]; then state="DIRTY"
+  elif [[ "$current" == "$gitlink" ]]; then state="OK"
+  else state="DIFF"
+  fi
+  version="unknown"
+  if [[ -f "$full/VERSION" ]]; then
+    value="$(tr -d '\r\n' < "$full/VERSION")"
+    if [[ -n "$value" ]]; then
+      [[ "$value" == v* ]] && version="$value" || version="v$value"
+    fi
+  fi
+  printf '%-28s BOOTSTRAP state=%-13s current=%s gitlink=%s version=%s\n'     "tool.git-project" "$state" "${current:0:12}" "${gitlink:0:12}" "$version"
+}
+
 show_full_status() {
+  show_bootstrap_engine_status
   show_status
   show_root_external_status
 }
