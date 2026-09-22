@@ -39,8 +39,8 @@ A consumer repository should separately contain:
 .gitmodules
 bootstrap.ps1
 bootstrap.sh
-update-repo.ps1
-update-repo.sh
+update.ps1
+update.sh
 tools/tool.git-project    # mode 160000 Git gitlink
 ```
 
@@ -155,7 +155,7 @@ M tools/tool.java-project
 
 The project owner decides whether to commit those changes.
 
-Updating the bootstrap engine itself is also a normal explicit submodule/gitlink update reviewed in the parent repository; it is not performed by `update-repo` v1.
+Updating the bootstrap engine itself is also a normal explicit submodule/gitlink update reviewed in the parent repository; it is not performed by `update` v1.
 
 ## Supported YAML subset
 
