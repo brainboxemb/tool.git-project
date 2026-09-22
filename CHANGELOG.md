@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.11 — 2026-09-22
+
+### Changed
+
+- Release test architecture is documented as stable capability contracts rather than historical issue checks, including the exact workflows required before an immutable tool release.
+- GitHub Actions contract-test workflow filenames use the portfolio `test-<capability>.yml` convention so test workflows group naturally in repository listings.
+- Current consumer documentation consistently names the managed root updater `update.ps1` / `update.sh`.
+
 ## 0.2.10 — 2026-09-22
 
 ### Added
@@ -11,7 +19,6 @@
 ### Changed
 
 - Normal generic bootstrap/update checks managed launcher drift and refreshes unpatched copies from the exact pinned `tool.git-project` revision.
-- Release test architecture is documented as stable capability contracts rather than historical issue checks, including the exact workflows required before an immutable tool release.
 
 
 ## 0.2.9 — 2026-09-21
