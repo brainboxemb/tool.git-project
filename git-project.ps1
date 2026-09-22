@@ -1,6 +1,6 @@
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("validate", "bootstrap", "status", "update")]
+    [ValidateSet("validate", "bootstrap", "status", "update", "refresh-launchers")]
     [string] $Command = "status",
 
     [string] $RepoRoot = ""
@@ -507,6 +507,28 @@ function Show-RootExternalStatus {
     }
 }
 
+
+function Invoke-ManagedLaunchers {
+    param([string] $Root, [ValidateSet("check", "refresh")] [string] $Mode)
+    $Script = Join-Path $PSScriptRoot "support/managed-consumer-launchers.ps1"
+    & $Script $Mode -RepoRoot $Root
+    if ($LASTEXITCODE -ne 0) { throw "Managed consumer launcher $Mode failed." }
+}
+
+function Invoke-ToolingPostUpdateHooks {
+    param([string] $Root, $Model)
+    foreach ($Dependency in $Model.Dependencies) {
+        if ($Dependency.Role -ne "tooling") { continue }
+        $ToolRoot = Join-Path $Root $Dependency.Path
+        if (-not (Test-DependencyRepoInitialized -FullPath $ToolRoot)) { continue }
+        $Hook = Join-Path $ToolRoot "consumer/post-update.ps1"
+        if (-not (Test-Path -LiteralPath $Hook -PathType Leaf)) { continue }
+        Write-Host "Running post-update hook: $($Dependency.Name)"
+        & $Hook -RepoRoot $Root
+        if ($LASTEXITCODE -ne 0) { throw "Post-update hook failed for $($Dependency.Name)." }
+    }
+}
+
 function Show-FullStatus {
     param([string] $Root, $Model)
     Show-Status -Root $Root -Model $Model
@@ -523,23 +545,32 @@ switch ($Command) {
         Write-Host "project.yml valid: $($Model.ProjectName) ($($Model.Dependencies.Count) dependencies, $($Model.Profiles.Count) profiles)"
     }
     "status" {
+        Invoke-ManagedLaunchers -Root $Root -Mode "check"
         Show-FullStatus -Root $Root -Model $Model
     }
     "bootstrap" {
+        Invoke-ManagedLaunchers -Root $Root -Mode "check"
         foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Bootstrapping" }
         Initialize-RootExternalClosure -Root $Root -Model $Model
+        Invoke-ManagedLaunchers -Root $Root -Mode "refresh"
         Write-Host ""
         Show-FullStatus -Root $Root -Model $Model
         Write-Host ""
         Write-Host "Bootstrap complete. Review parent changes with: git status"
     }
     "update" {
+        Invoke-ManagedLaunchers -Root $Root -Mode "check"
         foreach ($Dependency in $Model.Dependencies) { Sync-Dependency -Root $Root -Dependency $Dependency -Mode "Updating" }
         Initialize-RootExternalClosure -Root $Root -Model $Model
+        Invoke-ToolingPostUpdateHooks -Root $Root -Model $Model
+        Invoke-ManagedLaunchers -Root $Root -Mode "refresh"
         Write-Host ""
         Show-FullStatus -Root $Root -Model $Model
         Write-Host ""
-        Write-Host "Update complete. Review project.yml and gitlink changes before committing."
+        Write-Host "Update complete. Review project.yml, gitlinks and managed launcher changes before committing."
+    }
+    "refresh-launchers" {
+        Invoke-ManagedLaunchers -Root $Root -Mode "refresh"
     }
 }
 
