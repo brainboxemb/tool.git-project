@@ -53,7 +53,7 @@ A consumer pins it directly through the committed Git submodule/gitlink at:
 tools/tool.git-project
 ```
 
-That gives a normal clean clone an exact bootstrap-tool commit without recursive self-management. The root `bootstrap.ps1` / `bootstrap.sh` launchers restore that exact pinned commit and then delegate to the pinned tool.
+That gives a normal clean clone an exact bootstrap-tool commit without recursive self-management. The root `bootstrap.*` and `update.*` launchers treat that gitlink as authoritative. Before a mutating bootstrap/update they initialize or realign the local `tools/tool.git-project` worktree to the committed gitlink and only then delegate to it. They never advance the parent gitlink or resolve a newer tool release implicitly.
 
 When creating a new consumer repository, register this bootstrap dependency once, checkout the desired tool commit/tag, and commit both `.gitmodules` and the gitlink. After that every clone is deterministic.
 
@@ -106,8 +106,8 @@ The commands can also operate on another local repository, which is useful for C
 
 - `validate` — parse and validate generic `project.yml`; verify referenced profile files exist.
 - `bootstrap` — register/repair declared direct submodules, align them to configured refs, then complete the controlled transitive closure of nested `role: external` git-submodule dependencies.
-- `status` — inspect direct state plus nested external owner/path/gitlink/current/dirty state without fetching from the network.
-- `update` — fetch and align root-owned direct dependencies, then restore/validate nested external dependencies at each consumed owner's committed gitlink; dirty dependencies are refused.
+- `status` — inspect the bootstrap-engine gitlink/worktree state plus direct and nested external state without fetching from the network; a stale/dirty bootstrap engine is reported rather than executed through the managed root launcher.
+- `update` — first realign the local bootstrap-engine worktree to its already-committed parent gitlink, then fetch/align root-owned direct dependencies and restore/validate nested external dependencies; dirty bootstrap/dependency worktrees are refused.
 
 After `bootstrap` or `update`, review parent-repository changes with `git status`. Dependency updates intentionally appear as normal reviewable gitlink changes.
 

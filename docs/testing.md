@@ -41,6 +41,8 @@ checkout rather than merely invoking internal helper functions.
 Stable assertions include:
 
 - the bootstrap gitlink can restore the exact pinned `tool.git-project`;
+- a stale initialized bootstrap worktree is reported read-only by status and realigned to the committed gitlink before update delegation;
+- a dirty bootstrap worktree is refused rather than overwritten or executed;
 - declared direct dependencies resolve to their configured refs;
 - `bootstrap.*` and `update.*` remain Git-only entrypoints;
 - repeated update is idempotent;

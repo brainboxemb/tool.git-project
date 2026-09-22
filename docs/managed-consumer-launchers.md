@@ -40,3 +40,22 @@ preserves that file and emits a warning instead of silently removing the patch.
 
 Unmarked/legacy launcher differences are treated as drift: check emits a warning
 and explicit/normal refresh adopts the canonical generic launcher.
+
+
+## Bootstrap-engine pin enforcement
+
+The parent repository gitlink at `tools/tool.git-project` is the authoritative
+bootstrap-engine revision.
+
+A mutating root `bootstrap.*` or `update.*` launcher must initialize or
+realign the local bootstrap worktree to that committed gitlink **before**
+executing `git-project.*`. This prevents a newer managed root launcher from
+silently delegating to an older locally initialized tool worktree.
+
+This alignment never chooses a newer tag/branch and never changes the parent
+gitlink. A dirty bootstrap worktree is refused rather than overwritten.
+
+Read-only `update.* status` does not align or initialize anything. It reports
+`UNINITIALIZED`, `DIRTY` or `DIFF` for a non-authoritative bootstrap
+worktree and refuses to execute that modified/stale tool code. An aligned tool
+reports its bootstrap row together with the normal dependency status.

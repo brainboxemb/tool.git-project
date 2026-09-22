@@ -529,8 +529,47 @@ function Invoke-ToolingPostUpdateHooks {
     }
 }
 
+function Show-BootstrapEngineStatus {
+    param([string] $Root)
+
+    $Path = "tools/tool.git-project"
+    $Gitlink = Get-GitlinkCommit -Owner $Root -Path $Path
+    if (-not $Gitlink) {
+        Write-Host ("{0,-28} BOOTSTRAP state={1,-13} path={2}" -f "tool.git-project", "MISSING_GITLINK", $Path)
+        return
+    }
+
+    $FullPath = Join-Path $Root $Path
+    if (-not (Test-DependencyRepoInitialized -FullPath $FullPath)) {
+        Write-Host ("{0,-28} BOOTSTRAP state={1,-13} current=- gitlink={2} version=unknown" -f
+            "tool.git-project", "UNINITIALIZED", $Gitlink.Substring(0, 12))
+        return
+    }
+
+    $Current = ((Invoke-Git -WorkingDirectory $FullPath -Args @("rev-parse", "HEAD") -Capture).Output | Select-Object -First 1).Trim()
+    $Dirty = (Invoke-Git -WorkingDirectory $FullPath -Args @("status", "--porcelain") -Capture).Output
+    $State = if ($Dirty) { "DIRTY" } elseif ($Current -eq $Gitlink) { "OK" } else { "DIFF" }
+
+    $VersionFile = Join-Path $FullPath "VERSION"
+    $Version = "unknown"
+    if (Test-Path -LiteralPath $VersionFile -PathType Leaf) {
+        $Value = (Get-Content -LiteralPath $VersionFile | Select-Object -First 1).Trim()
+        if ($Value) {
+            $Version = if ($Value.StartsWith("v")) { $Value } else { "v$Value" }
+        }
+    }
+
+    Write-Host ("{0,-28} BOOTSTRAP state={1,-13} current={2} gitlink={3} version={4}" -f
+        "tool.git-project",
+        $State,
+        $Current.Substring(0, 12),
+        $Gitlink.Substring(0, 12),
+        $Version)
+}
+
 function Show-FullStatus {
     param([string] $Root, $Model)
+    Show-BootstrapEngineStatus -Root $Root
     Show-Status -Root $Root -Model $Model
     Show-RootExternalStatus -Root $Root -Model $Model
 }

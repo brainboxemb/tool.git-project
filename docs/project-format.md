@@ -44,7 +44,7 @@ update.sh
 tools/tool.git-project    # mode 160000 Git gitlink
 ```
 
-The gitlink records the exact bootstrap-engine commit. Root bootstrap launchers run `git submodule update --init -- tools/tool.git-project` and then delegate to that exact revision.
+The gitlink records the exact bootstrap-engine commit. Root `bootstrap.*` and mutating `update.*` launchers run the equivalent of `git submodule update --init -- tools/tool.git-project` before delegation, so an already initialized but stale local worktree cannot silently execute a different tool revision.
 
 This special case avoids recursive self-management and ensures the tool required to parse `project.yml` is available before managed dependencies are processed.
 
@@ -155,7 +155,7 @@ M tools/tool.java-project
 
 The project owner decides whether to commit those changes.
 
-Updating the bootstrap engine itself is also a normal explicit submodule/gitlink update reviewed in the parent repository; it is not performed by `update` v1.
+Advancing the bootstrap engine to a different release remains a normal explicit submodule/gitlink update reviewed in the parent repository. `update` does not change that parent pin; it only materializes the local bootstrap worktree back to the already committed gitlink before executing it.
 
 ## Supported YAML subset
 
