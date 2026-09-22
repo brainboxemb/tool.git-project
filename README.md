@@ -4,7 +4,7 @@ Reusable generic repository tooling for Git dependency bootstrap, pinned externa
 
 `tool.git-project` owns the generic repository mechanism shared by Java, SCAD, documentation, and future engineering projects. Its **core Git path remains Git-only**. Moon is an explicit opt-in capability for repositories that want faster build/release feedback through high-level task selection and output-cache hydration. The tool deliberately does **not** own Java/Maven, OpenSCAD/SCons, documentation-rendering, Docker, or product-domain behaviour.
 
-Release history: [`CHANGELOG.md`](CHANGELOG.md)
+Release history: [`CHANGELOG.md`](CHANGELOG.md) · Release test architecture: [`docs/testing.md`](docs/testing.md)
 
 ## Model
 
@@ -114,11 +114,11 @@ After `bootstrap` or `update`, review parent-repository changes with `git status
 Generated root launchers also expose read-only full-closure status:
 
 ```bash
-./update-repo.sh status
+./update.sh status
 ```
 
 ```powershell
-.\update-repo.ps1 status
+.\update.ps1 status
 ```
 
 A consumed repository's committed nested gitlink remains its exact dependency pin. Its `project.yml ref` is validated as owner metadata; the outer consumer does not advance that nested gitlink independently.
@@ -284,6 +284,6 @@ The bootstrap engine itself is always pinned by its parent gitlink. Reusable Git
 
 ## Self-test fixture
 
-`fixture/` is intentionally build-system-neutral. CI creates a temporary Git consumer repository, pins the current `tool.git-project` revision as its bootstrap gitlink, removes the initialized worktree to emulate a fresh clone, and then proves root-level bootstrap plus managed dependency validation, status and idempotent update on both Linux and Windows.
+`fixture/` provides the generic consumer configuration used by the core Git contract test. CI creates a temporary Git consumer repository, pins the current `tool.git-project` revision as its bootstrap gitlink, removes initialized worktrees to emulate a fresh clone, and then proves root-level bootstrap, managed dependency validation, read-only status and idempotent update on both Linux and Windows.
 
-Separate lifecycle tests exercise PR-preview cleanup, generated-output publication, the reusable release contract, the execution-evidence schema/fixtures, and the optional Moon production interface. Moon's architectural behavior was qualified before production implementation; the owner regression here only proves the released wrapper preserves the accepted cache/hydration contract on Linux and Windows.
+Separate contract suites exercise PR-preview cleanup, generated-output publication, the reusable release lifecycle, the execution-evidence schema and the optional Moon production interface. Their stable purposes, platform coverage and release-gating role are defined in [`docs/testing.md`](docs/testing.md).
