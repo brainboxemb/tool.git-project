@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command_name="${1:-status}"
 if [[ $# -gt 0 ]]; then shift; fi
 repo_root=""
@@ -12,8 +13,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$command_name" in
-  validate|bootstrap|status|update) ;;
-  *) echo "Usage: $0 {validate|bootstrap|status|update} [--repo PATH]" >&2; exit 2 ;;
+  validate|bootstrap|status|update|refresh-launchers) ;;
+  *) echo "Usage: $0 {validate|bootstrap|status|update|refresh-launchers} [--repo PATH]" >&2; exit 2 ;;
 esac
 
 command -v git >/dev/null 2>&1 || { echo "Git was not found in PATH." >&2; exit 1; }
@@ -514,12 +515,40 @@ show_root_external_status() {
   done
 }
 
+
+managed_launchers() {
+  local mode="$1"
+  "$script_root/support/managed-consumer-launchers.sh" "$mode" --repo "$repo_root"
+}
+
+run_tooling_post_update_hooks() {
+  local i tool_root hook
+  for i in "${!dep_names[@]}"; do
+    [[ "${dep_roles[$i]}" == "tooling" ]] || continue
+    tool_root="$repo_root/${dep_paths[$i]}"
+    dependency_repo_initialized "$tool_root" || continue
+    hook="$tool_root/consumer/post-update.sh"
+    [[ -f "$hook" ]] || continue
+    echo "Running post-update hook: ${dep_names[$i]}"
+    bash "$hook" --repo "$repo_root"
+  done
+}
+
 show_full_status() {
   show_status
   show_root_external_status
 }
 
-if [[ "$command_name" == "status" ]]; then show_full_status; exit 0; fi
+if [[ "$command_name" == "status" ]]; then
+  managed_launchers check
+  show_full_status
+  exit 0
+fi
+
+if [[ "$command_name" == "refresh-launchers" ]]; then
+  managed_launchers refresh
+  exit 0
+fi
 
 for i in "${!dep_names[@]}"; do
   if [[ "$command_name" == "bootstrap" ]]; then sync_dependency "$i" "Bootstrapping"; else sync_dependency "$i" "Updating"; fi
@@ -527,11 +556,16 @@ done
 
 walk_root_external_dependencies
 
+if [[ "$command_name" == "update" ]]; then
+  run_tooling_post_update_hooks
+fi
+managed_launchers refresh
+
 echo
 show_full_status
 echo
 if [[ "$command_name" == "bootstrap" ]]; then
   echo "Bootstrap complete. Review parent changes with: git status"
 else
-  echo "Update complete. Review project.yml and gitlink changes before committing."
+  echo "Update complete. Review project.yml, gitlinks and managed launcher changes before committing."
 fi

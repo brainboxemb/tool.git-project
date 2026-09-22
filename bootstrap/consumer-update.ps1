@@ -1,3 +1,7 @@
+# Managed-Source: brainboxemb/tool.git-project/bootstrap/consumer-update.ps1
+# Managed-Source-Version: @TOOL_GIT_PROJECT_VERSION@
+# Managed-Source-Revision: @TOOL_GIT_PROJECT_REVISION@
+# Managed-Local-Patch: none
 param(
     [ValidateSet("update", "status")]
     [string] $Command = "update"
