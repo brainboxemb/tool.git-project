@@ -188,28 +188,7 @@ jobs:
           try {
             $path = Join-Path $env:FIXTURE_REPO "update-repo.ps1"
             $text = [System.IO.File]::ReadAllText($path)
-            $text = [regex]::Replace($text, '(?m)^# Managed-Source-Revision:.*
-        run: |
-          Push-Location $env:FIXTURE_REPO
-          try {
-            Add-Content -Path tools/tool.java-project/README.md -Value "local test change"
-            $failedAsExpected = $false
-            try {
-              .\update-repo.ps1
-            } catch {
-              $failedAsExpected = $true
-              if ($_.Exception.Message -notmatch 'local changes') { throw }
-              Write-Host $_.Exception.Message
-            }
-            if (-not $failedAsExpected) { throw "update unexpectedly succeeded for a dirty dependency" }
-            git -C tools/tool.java-project reset --hard HEAD
-          } finally {
-            Pop-Location
-          }
-      - name: Transitive external dependency contract
-        shell: pwsh
-        run: .\tests\transitive-external-closure.ps1 -RepoRoot $env:FIXTURE_REPO
-, '# Managed-Source-Revision: stale-test-revision')
+            $text = [regex]::Replace($text, '(?m)^# Managed-Source-Revision:.*$', '# Managed-Source-Revision: stale-test-revision')
             [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
             $output = (& .\tools\tool.git-project\git-project.ps1 status -RepoRoot . 3>&1 2>&1 | Out-String)
             Write-Host $output
