@@ -22,20 +22,20 @@ optimization must not weaken exact-release qualification.
 
 | Capability | Released surface | Contract workflow | Platform / environment | Release gate |
 | --- | --- | --- | --- | --- |
-| Generic Git core and managed launchers | `git-project.ps1`, `git-project.sh`, `bootstrap.*`, `update.*` | `self-test.yml` | Linux + native Windows | yes |
-| PR preview cleanup | `reusable-pr-preview-cleanup.yml` | `pr-preview-cleanup-test.yml` | GitHub repository integration | yes |
-| Artifact-based generated-output publication | `reusable-generated-output-publish.yml` | `generated-output-publish-test.yml` | GitHub repository integration | yes |
-| Same-job generated-output publication | `generated-output/publish/action.yml` plus native publisher scripts | `generated-output-same-job-test.yml` | Linux + native Windows + GitHub integration | yes |
-| Generic release lifecycle | `reusable-release.yml` | `reusable-release-test.yml` | GitHub Actions dry-run contract | yes |
-| Moon affected/execution/cache integration | `moon/affected/action.yml`, `moon/action.yml`, native Moon wrappers | `moon-orchestration-test.yml` | Linux + native Windows | yes |
-| Execution-evidence schema | `schemas/execution-evidence.schema.json` | `execution-evidence-schema-test.yml` | schema validation + positive/negative fixtures | yes |
+| Generic Git core and managed launchers | `git-project.ps1`, `git-project.sh`, `bootstrap.*`, `update.*` | `test-self.yml` | Linux + native Windows | yes |
+| PR preview cleanup | `reusable-pr-preview-cleanup.yml` | `test-pr-preview-cleanup.yml` | GitHub repository integration | yes |
+| Artifact-based generated-output publication | `reusable-generated-output-publish.yml` | `test-generated-output-publish.yml` | GitHub repository integration | yes |
+| Same-job generated-output publication | `generated-output/publish/action.yml` plus native publisher scripts | `test-generated-output-same-job.yml` | Linux + native Windows + GitHub integration | yes |
+| Generic release lifecycle | `reusable-release.yml` | `test-release-lifecycle.yml` | GitHub Actions dry-run contract | yes |
+| Moon affected/execution/cache integration | `moon/affected/action.yml`, `moon/action.yml`, native Moon wrappers | `test-moon-orchestration.yml` | Linux + native Windows | yes |
+| Execution-evidence schema | `schemas/execution-evidence.schema.json` | `test-execution-evidence-schema.yml` | schema validation + positive/negative fixtures | yes |
 
 The list above mirrors `.github/workflows/release.yml`. Adding or removing a
 released capability requires reviewing both the release gate and this document.
 
 ## Core Git contract
 
-`self-test.yml` proves the repository-maintenance contract from a consumer
+`test-self.yml` proves the repository-maintenance contract from a consumer
 checkout rather than merely invoking internal helper functions.
 
 Stable assertions include:
