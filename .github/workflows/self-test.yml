@@ -91,6 +91,7 @@ jobs:
           grep -q "declared local patch" launcher-patch.log
           grep -q "retained local patch" update-repo.sh
           git checkout -- update-repo.sh
+          rm -f launcher-drift.log launcher-patch.log
       - name: Dirty dependency is protected
         shell: bash
         run: |
