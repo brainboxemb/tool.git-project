@@ -1,4 +1,5 @@
 name: Test generic release lifecycle
+# Contract: generic release request validation and dry-run lifecycle remain side-effect free and deterministic. See docs/testing.md.
 
 on:
   pull_request:

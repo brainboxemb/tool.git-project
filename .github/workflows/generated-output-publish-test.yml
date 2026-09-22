@@ -1,4 +1,5 @@
 name: Test generated output publication
+# Contract: artifact-based generated-output publication obeys safe branch mapping and stale-source suppression. See docs/testing.md.
 
 on:
   pull_request:

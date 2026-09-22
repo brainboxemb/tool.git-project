@@ -1,4 +1,5 @@
 name: Test same-job generated output publication
+# Contract: same-job publication preserves caller worktrees and matches the generic publication safety contract on Linux and Windows. See docs/testing.md.
 
 on:
   pull_request:
