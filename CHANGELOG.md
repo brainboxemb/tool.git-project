@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Managed `bootstrap.*` / `update.*` launchers now enforce the committed `tools/tool.git-project` gitlink before mutating repository operations, so a stale initialized bootstrap worktree cannot silently execute an older tool revision.
+- Dirty bootstrap-engine worktrees are refused rather than overwritten; read-only status reports stale/dirty/uninitialized bootstrap state without executing untrusted tool code.
+
+### Changed
+
+- Normal repository status includes an explicit `tool.git-project` bootstrap row with current SHA, parent gitlink, state and source-controlled version.
+
+
 ## 0.2.11 — 2026-09-22
 
 ### Changed
