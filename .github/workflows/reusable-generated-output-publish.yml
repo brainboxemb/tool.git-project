@@ -1,5 +1,8 @@
 name: Reusable generated output publication
 
+# Purpose: publish one generated-output family for a caller repository from an uploaded artifact.
+# Scope: public reusable workflow API.
+
 on:
   workflow_call:
     inputs:
