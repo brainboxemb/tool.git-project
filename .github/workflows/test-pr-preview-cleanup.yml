@@ -1,4 +1,4 @@
-name: Test PR preview cleanup
+name: Test PR cleanup
 
 # Purpose: qualify PR-preview cleanup safety and protected-ref preservation.
 # Scope: repository qualification workflow.
