@@ -20,7 +20,9 @@ tool="$tool_root/git-project.sh"
 
 bootstrap_head() {
   [[ -d "$tool_root" ]] || return 1
-  git -C "$tool_root" rev-parse --show-toplevel >/dev/null 2>&1 || return 1
+  local top=""
+  top="$(git -C "$tool_root" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ "$top" == "$tool_root" ]] || return 1
   git -C "$tool_root" rev-parse HEAD 2>/dev/null
 }
 
