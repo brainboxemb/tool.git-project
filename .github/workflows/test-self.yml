@@ -1,4 +1,4 @@
-name: Test self
+name: test self
 
 # Purpose: qualify generic Git bootstrap, status, update, launcher safety, and dependency closure.
 # Scope: repository qualification workflow.
