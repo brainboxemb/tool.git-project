@@ -1,4 +1,4 @@
-name: Test same-job generated output publication
+name: Test output same-job
 
 # Purpose: qualify same-job generated-output publication on Linux and Windows without corrupting caller worktrees.
 # Scope: repository qualification workflow.
