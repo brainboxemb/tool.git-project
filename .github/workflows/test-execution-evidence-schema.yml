@@ -1,4 +1,4 @@
-name: Test evidence schema
+name: test evidence schema
 
 # Purpose: qualify the released execution-evidence schema against valid and invalid fixtures.
 # Scope: repository qualification workflow.
