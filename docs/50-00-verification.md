@@ -30,7 +30,7 @@ optimization must not weaken exact-release qualification.
 | Moon affected/execution/cache integration | `moon/affected/action.yml`, `moon/action.yml`, native Moon wrappers | `test-moon-orchestration.yml` | Linux + native Windows | yes |
 | Execution-evidence schema | `schemas/execution-evidence.schema.json` | `test-execution-evidence-schema.yml` | schema validation + positive/negative fixtures | yes |
 
-The list above mirrors `.github/workflows/release.yml`. Adding or removing a
+The list above mirrors `.github/workflows/self-release.yml`. Adding or removing a
 released capability requires reviewing both the release gate and this document.
 
 ## Core Git contract

@@ -1,4 +1,7 @@
-name: Release tool.git-project
+name: Release
+
+# Purpose: create an immutable tool.git-project release from an already-qualified main commit.
+# Scope: repository self-entry workflow; delegates release mechanics to reusable-release.yml.
 
 on:
   workflow_dispatch:

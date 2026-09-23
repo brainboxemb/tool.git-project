@@ -1,5 +1,7 @@
-name: Test execution evidence schema
-# Contract: the released execution-evidence schema accepts valid fixtures and rejects invalid contract fixtures. See docs/testing.md.
+name: test Evidence schema
+
+# Purpose: qualify the released execution-evidence schema against valid and invalid fixtures.
+# Scope: repository qualification workflow.
 
 on:
   pull_request:

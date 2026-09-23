@@ -1,5 +1,7 @@
-name: Test generic release lifecycle
-# Contract: generic release request validation and dry-run lifecycle remain side-effect free and deterministic. See docs/testing.md.
+name: test Release
+
+# Purpose: qualify generic release-request validation and dry-run lifecycle behavior without publishing a real release.
+# Scope: repository qualification workflow.
 
 on:
   pull_request:

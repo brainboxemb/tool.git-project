@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Apply the shared GitHub Actions scope naming convention: the repository-owned release entrypoint is now `.github/workflows/self-release.yml`, while public APIs remain `reusable-*` and qualification workflows remain `test-*`.
+- Add concise `Purpose` and `Scope` orientation comments to every maintained workflow so its role is visible without reading the full implementation.
 - Standardize repository documentation into numbered plan/manual/specification/design/verification families, retain `docs/README.md` as the GitHub directory landing page, and classify the existing project, launcher, publication, release, Moon and verification contracts under stable numbered paths.
 
 ## 0.2.12 — 2026-09-22

@@ -1,4 +1,7 @@
-name: Reusable PR preview cleanup
+name: reusable PR cleanup
+
+# Purpose: remove validated generated PR-preview branches for a caller repository.
+# Scope: public reusable workflow API.
 
 on:
   workflow_call:

@@ -60,3 +60,15 @@ When changing:
 Portfolio Git/PR/documentation conventions are owned by
 [`brainboxemb.meta`](https://github.com/brainboxemb/brainboxemb.meta).
 Repository-local rules here only add tool-specific constraints.
+
+
+## Workflow files
+
+This repository follows the shared workflow scope convention:
+
+- `self-release.yml` is the repository-owned release entrypoint;
+- `reusable-*.yml` files are public `workflow_call` APIs;
+- `test-*.yml` files qualify owner capabilities/contracts.
+
+Each maintained workflow carries concise `Purpose` and `Scope` comments near
+the top so its role is visible without reading the complete implementation.

@@ -1,5 +1,7 @@
-name: Self-test Git project tooling
-# Contract: generic Git bootstrap/status/update, managed launcher safety and dependency closure on Linux and Windows. See docs/testing.md.
+name: test Self
+
+# Purpose: qualify generic Git bootstrap, status, update, launcher safety, and dependency closure.
+# Scope: repository qualification workflow.
 
 on:
   pull_request:
