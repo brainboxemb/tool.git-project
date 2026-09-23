@@ -63,12 +63,16 @@ jobs:
         run: |
           set -euo pipefail
           cd "$FIXTURE_REPO"
+          mkdir -p .moon/preflight
+          printf '{"fixture":"parent-dirty-before-bootstrap"}\n' > .moon/preflight/decision.json
+          test -n "$(git status --porcelain)"
           ./bootstrap.sh
           test "$(git -C tools/tool.git-project rev-parse HEAD)" = "$EXPECTED_TOOL_SHA"
           test "$(git -C tools/tool.java-project rev-parse HEAD)" = "$JAVA_TOOL_REF"
           git ls-files --stage -- tools/tool.git-project | grep '^160000 '
           git ls-files --stage -- tools/tool.java-project | grep '^160000 '
           tools/tool.git-project/git-project.sh status --repo .
+          rm -rf .moon
       - name: Root update launcher is idempotent
         shell: bash
         run: |
@@ -197,6 +201,9 @@ jobs:
         run: |
           Push-Location $env:FIXTURE_REPO
           try {
+            New-Item -ItemType Directory -Force -Path ".moon/preflight" | Out-Null
+            Set-Content -Path ".moon/preflight/decision.json" -Value '{"fixture":"parent-dirty-before-bootstrap"}'
+            if (-not (git status --porcelain)) { throw "Parent fixture must be dirty before bootstrap." }
             .\bootstrap.ps1
             $toolActual = (git -C tools/tool.git-project rev-parse HEAD).Trim()
             if ($toolActual -ne $env:EXPECTED_TOOL_SHA) { throw "Unexpected bootstrap tool SHA: $toolActual" }
@@ -207,6 +214,7 @@ jobs:
             if ($toolEntry -notmatch '^160000\s') { throw "Bootstrap tool is not a gitlink." }
             if ($javaEntry -notmatch '^160000\s') { throw "Java tool is not a gitlink." }
             .\tools\tool.git-project\git-project.ps1 status -RepoRoot .
+            Remove-Item -Recurse -Force ".moon"
           } finally {
             Pop-Location
           }

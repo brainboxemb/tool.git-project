@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Treat an uninitialized `tools/tool.git-project` gitlink directory as uninitialized even when Git can walk up to the parent worktree; parent generated/untracked state no longer triggers a false dirty-bootstrap refusal.
+
 ## 0.2.13 — 2026-09-23
 
 ### Changed

@@ -17,11 +17,14 @@ fi
 expected="${BASH_REMATCH[1],,}"
 tool_root="$root/$tool_path"
 current=""
-if [[ -d "$tool_root" ]] && git -C "$tool_root" rev-parse --show-toplevel >/dev/null 2>&1; then
-  current="$(git -C "$tool_root" rev-parse HEAD)"
-  if [[ -n "$(git -C "$tool_root" status --porcelain)" ]]; then
-    echo "Bootstrap engine 'tool.git-project' has local changes; refusing to align it to the committed gitlink." >&2
-    exit 1
+if [[ -d "$tool_root" ]]; then
+  top="$(git -C "$tool_root" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ "$top" == "$tool_root" ]]; then
+    current="$(git -C "$tool_root" rev-parse HEAD)"
+    if [[ -n "$(git -C "$tool_root" status --porcelain)" ]]; then
+      echo "Bootstrap engine 'tool.git-project' has local changes; refusing to align it to the committed gitlink." >&2
+      exit 1
+    fi
   fi
 fi
 
