@@ -1,5 +1,7 @@
 name: Test generated output publication
-# Contract: artifact-based generated-output publication obeys safe branch mapping and stale-source suppression. See docs/testing.md.
+
+# Purpose: qualify artifact-based generated-output publication, safe branch mapping, and stale-source suppression.
+# Scope: repository qualification workflow.
 
 on:
   pull_request:
