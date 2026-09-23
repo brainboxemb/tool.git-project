@@ -1,4 +1,4 @@
-name: Test generated output publication
+name: Test output publish
 
 # Purpose: qualify artifact-based generated-output publication, safe branch mapping, and stale-source suppression.
 # Scope: repository qualification workflow.
