@@ -61,17 +61,17 @@ When extending the generic Git format, update:
 
 - both PowerShell and shell implementations;
 - `schemas/project.schema.json`;
-- `docs/project-format.md`;
+- `docs/30-10-project-format.md`;
 - fixture/self-tests.
 
 When extending the persistent execution-evidence contract, update:
 
 - `schemas/execution-evidence.schema.json`;
-- `docs/execution-evidence.md`;
+- `docs/30-12-execution-evidence.md`;
 - positive/negative contract fixtures;
 - schema self-tests and release gating.
 
-When extending the Moon integration, preserve Linux/Windows parity and the producer-evidence versus current-materialization-evidence distinction described in `docs/moon-orchestration.md`.
+When extending the Moon integration, preserve Linux/Windows parity and the producer-evidence versus current-materialization-evidence distinction described in `docs/40-10-moon-orchestration.md`.
 
 ## Pull requests
 

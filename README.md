@@ -4,7 +4,7 @@ Reusable generic repository tooling for Git dependency bootstrap, pinned externa
 
 `tool.git-project` owns the generic repository mechanism shared by Java, SCAD, documentation, and future engineering projects. Its **core Git path remains Git-only**. Moon is an explicit opt-in capability for repositories that want faster build/release feedback through high-level task selection and output-cache hydration. The tool deliberately does **not** own Java/Maven, OpenSCAD/SCons, documentation-rendering, Docker, or product-domain behaviour.
 
-Release history: [`CHANGELOG.md`](CHANGELOG.md) · Release test architecture: [`docs/testing.md`](docs/testing.md)
+Documentation: [`docs/README.md`](docs/README.md) · Release history: [`CHANGELOG.md`](CHANGELOG.md) · Release test architecture: [`docs/50-00-verification.md`](docs/50-00-verification.md)
 
 ## Model
 
@@ -41,7 +41,7 @@ The Git tool validates that configured profile files exist, but treats their con
 
 For maximum reproducibility a consumer may additionally record or pin the exact commit behind the release tag in its committed gitlink/provenance. A normal release is created only from the exact current `main` commit after the required self-tests are green.
 
-Generic release-request, tag and optional release orchestration is documented in [`docs/release-lifecycle.md`](docs/release-lifecycle.md).
+Generic release-request, tag and optional release orchestration is documented in [`docs/30-14-release-lifecycle.md`](docs/30-14-release-lifecycle.md).
 
 ## Bootstrap dependency
 
@@ -78,7 +78,7 @@ dependencies:
     ref: v0.1.2
 ```
 
-See [`docs/project-format.md`](docs/project-format.md) for the contract.
+See [`docs/30-10-project-format.md`](docs/30-10-project-format.md) for the contract.
 
 ## Local Git commands
 
@@ -173,7 +173,7 @@ The affected action treats an aggregate target as affected when Moon marks the t
 
 The production action caches the pinned Moon runtime separately from Moon's portable `hashes` / `outputs` task cache. Domain task outputs retain their original producer evidence; the current Moon invocation writes separate materialization evidence.
 
-See [`docs/moon-orchestration.md`](docs/moon-orchestration.md) for the full production contract and ownership boundary.
+See [`docs/40-10-moon-orchestration.md`](docs/40-10-moon-orchestration.md) for the full production contract and ownership boundary.
 
 ## Persistent producer execution evidence
 
@@ -189,7 +189,7 @@ The normative machine-readable contract is [`schemas/execution-evidence.schema.j
 
 Producer execution evidence is separate from current Moon materialization evidence under `orchestration/` and must not be rewritten when equivalent producer output is later hydrated.
 
-See [`docs/execution-evidence.md`](docs/execution-evidence.md) for the ownership, schema and publication rules.
+See [`docs/30-12-execution-evidence.md`](docs/30-12-execution-evidence.md) for the ownership, schema and publication rules.
 
 ## Consumer bootstrap launchers
 
@@ -201,7 +201,7 @@ The substantial dependency logic stays here rather than being copied into every 
 
 The root launchers are centrally managed copies with source/version/revision metadata. Normal bootstrap/update checks for drift and refreshes unpatched copies from the exact pinned tool revision. A deliberate consumer patch must be declared through the `Managed-Local-Patch` header and is then preserved. Domain tooling extends update through an optional `consumer/post-update.*` hook instead of replacing the generic root launcher.
 
-See [Managed consumer launchers](docs/managed-consumer-launchers.md) for the provenance, refresh and local-patch contract.
+See [Managed consumer launchers](docs/30-11-managed-consumer-launchers.md) for the provenance, refresh and local-patch contract.
 
 ## Generated output lifecycle
 
@@ -222,7 +222,7 @@ Two released interfaces share the same publication implementation:
 
 Both interfaces preserve the same branch mapping, exact-source stale checks, same-repository PR restriction and force-push safety. Direct same-job callers own job-level serialization for a target family; the reusable wrapper retains its built-in concurrency group.
 
-See [`docs/generated-output-publication.md`](docs/generated-output-publication.md) for the full contract.
+See [`docs/30-13-generated-output-publication.md`](docs/30-13-generated-output-publication.md) for the full contract.
 
 ## PR preview branch cleanup
 
@@ -286,4 +286,4 @@ The bootstrap engine itself is always pinned by its parent gitlink. Reusable Git
 
 `fixture/` provides the generic consumer configuration used by the core Git contract test. CI creates a temporary Git consumer repository, pins the current `tool.git-project` revision as its bootstrap gitlink, removes initialized worktrees to emulate a fresh clone, and then proves root-level bootstrap, managed dependency validation, read-only status and idempotent update on both Linux and Windows.
 
-Separate contract suites exercise PR-preview cleanup, generated-output publication, the reusable release lifecycle, the execution-evidence schema and the optional Moon production interface. Their stable purposes, platform coverage and release-gating role are defined in [`docs/testing.md`](docs/testing.md).
+Separate contract suites exercise PR-preview cleanup, generated-output publication, the reusable release lifecycle, the execution-evidence schema and the optional Moon production interface. Their stable purposes, platform coverage and release-gating role are defined in [`docs/50-00-verification.md`](docs/50-00-verification.md).

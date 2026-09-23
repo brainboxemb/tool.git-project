@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Standardize repository documentation into numbered plan/manual/specification/design/verification families, retain `docs/README.md` as the GitHub directory landing page, and classify the existing project, launcher, publication, release, Moon and verification contracts under stable numbered paths.
+
 ## 0.2.12 — 2026-09-22
 
 ### Fixed

@@ -1,6 +1,6 @@
-# Test architecture
+# Verification
 
-`tool.git-project` is a released multi-interface repository. One release tag
+This document defines how `tool.git-project` proves its released contracts. `tool.git-project` is a released multi-interface repository. One release tag
 publishes the generic Git core together with reusable repository workflows,
 composite actions, Moon integration and the execution-evidence schema.
 
