@@ -1,4 +1,4 @@
-name: reusable output publish
+name: reusable Output publish
 
 # Purpose: publish one generated-output family for a caller repository from an uploaded artifact.
 # Scope: public reusable workflow API.
