@@ -1,4 +1,4 @@
-name: test release
+name: test Release
 
 # Purpose: qualify generic release-request validation and dry-run lifecycle behavior without publishing a real release.
 # Scope: repository qualification workflow.
