@@ -1,5 +1,7 @@
 name: Test PR preview cleanup
-# Contract: preview cleanup may delete only the requested dev/pr-N namespace and must preserve protected/unrelated refs. See docs/testing.md.
+
+# Purpose: qualify PR-preview cleanup safety and protected-ref preservation.
+# Scope: repository qualification workflow.
 
 on:
   pull_request:
