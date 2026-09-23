@@ -1,5 +1,7 @@
 name: Test same-job generated output publication
-# Contract: same-job publication preserves caller worktrees and matches the generic publication safety contract on Linux and Windows. See docs/testing.md.
+
+# Purpose: qualify same-job generated-output publication on Linux and Windows without corrupting caller worktrees.
+# Scope: repository qualification workflow.
 
 on:
   pull_request:
