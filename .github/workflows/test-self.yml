@@ -1,4 +1,4 @@
-name: Self-test Git project tooling
+name: Self-test
 
 # Purpose: qualify generic Git bootstrap, status, update, launcher safety, and dependency closure.
 # Scope: repository qualification workflow.
