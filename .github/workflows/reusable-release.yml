@@ -1,4 +1,4 @@
-name: Reusable release
+name: reusable release
 
 # Purpose: validate and execute the generic immutable release lifecycle for a caller repository.
 # Scope: public reusable workflow API.
