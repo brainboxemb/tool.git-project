@@ -1,4 +1,4 @@
-name: Test Moon production orchestration
+name: Test Moon orchestration
 
 # Purpose: qualify optional Moon affected, execution, and cache orchestration across supported hosts.
 # Scope: repository qualification workflow.
